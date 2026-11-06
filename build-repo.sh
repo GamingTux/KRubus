@@ -34,6 +34,40 @@ SUMMARY_FILE="${GITHUB_STEP_SUMMARY:-/tmp/github_step_summary.md}"
 mkdir -p "$REPO_DIR/pool/main" "$REPO_DIR/dists/${SUITE}/main/binary-arm64"
 rm -f "$ROOT_DIR/.build_failed"
 
+# Erzwinge maximale .deb-Kompression (-Zxz -z9 -Sextreme) global für alle dpkg-deb Build-Aufrufe
+if [[ ! -f /usr/bin/dpkg-deb.distrib ]]; then
+  dpkg-divert --local --rename --add /usr/bin/dpkg-deb >/dev/null
+  cat << 'EOF' > /usr/bin/dpkg-deb
+#!/usr/bin/env bash
+is_build=0
+for arg in "$@"; do
+  if [[ "$arg" == "-b" || "$arg" == "--build" ]]; then
+    is_build=1
+    break
+  fi
+done
+if [[ "$is_build" -eq 1 ]]; then
+  args=()
+  skip=0
+  for arg in "$@"; do
+    if [[ "$skip" -eq 1 ]]; then
+      skip=0
+      continue
+    fi
+    case "$arg" in
+      -Z|-z|-S) skip=1 ;;
+      -Z*|-z*|-S*|--compression=*|--compression-level=*|--compression-strategy=*) ;;
+      *) args+=("$arg") ;;
+    esac
+  done
+  exec /usr/bin/dpkg-deb.distrib -Zxz -z9 -Sextreme "${args[@]}"
+else
+  exec /usr/bin/dpkg-deb.distrib "$@"
+fi
+EOF
+  chmod +x /usr/bin/dpkg-deb
+fi
+
 # Unnötige Dokumentations-, Debug-, Source- und Cross-Compile-Pakete aus bestehendem Pool bereinigen
 rm -f "$REPO_DIR"/pool/main/*dbgsym*.deb \
       "$REPO_DIR"/pool/main/*-dbg_*.deb \
