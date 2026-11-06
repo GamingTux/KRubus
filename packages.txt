@@ -38,9 +38,11 @@ libssh
 libssh2
 curl
 
-# --- 3. Basis-Bibliotheken, Allocator, SIMD, Regex, XML/JSON & Datenbank ---
+# --- 3. Basis-Bibliotheken, Allocator, SIMD, Regex, XML/JSON, IPC & System-Daemons ---
 jemalloc
 highway
+double-conversion
+md4c
 pcre2
 re2
 expat
@@ -51,12 +53,36 @@ json-c
 sqlite3
 glib2.0
 json-glib
+dbus
+dbus-broker
+kmod
+wpa
+bluez
+netplan.io
+network-manager
+cups
+cups-filters
+appstream
+packagekit
+ostree
+flatpak
+raspi-utils
 
-# --- 4. Display-Server, Wayland/X11 (+rpt), Input (+rpt) & 3D/OpenGL/Vulkan-Stack ---
+# --- 4. Display-Server, Wayland/X11 (+rpt), Input (+rpt), Vulkan & 3D/OpenGL-Stack ---
+libevdev
+mtdev
+tslib
+libwacom
 wayland
 libxkbcommon
 libinput
 libdrm
+libliftoff
+vulkan-loader
+vulkan-volk
+glslang
+spirv-tools
+shaderc
 mesa
 libepoxy
 pixman
@@ -87,7 +113,7 @@ librsvg
 qpdf
 poppler
 
-# --- 6. Moderne Bild- & Video-Codecs (SIMD / NEON / DotProd) ---
+# --- 6. Moderne Bild- & Video-Codecs (SIMD / NEON / DotProd) & Pi 5 Kamera/ISP (+rpt) ---
 dav1d
 aom
 svt-av1
@@ -107,6 +133,10 @@ libtheora
 zimg
 libass
 libplacebo
+libpisp
+kms++
+libcamera
+rpicam-apps
 
 # --- 7. Audio-Codecs, DSP, FFT, Resampling & PipeWire-Stack (+rpt) ---
 libogg
@@ -125,11 +155,12 @@ libsoxr
 speexdsp
 webrtc-audio-processing
 alsa-lib
+alsa-utils
 pulseaudio
 pipewire
 wireplumber
 
-# --- 8. GStreamer-Stack (+rpt), Multimedia-Player, Toolkits & Python ---
+# --- 8. GStreamer-Stack (+rpt), Multimedia-Player, Toolkits & Python (inkl. PGO) ---
 gstreamer1.0
 gst-plugins-base1.0
 gst-plugins-good1.0
@@ -148,13 +179,14 @@ ffmpegthumbnailer
 btop
 htop
 fastfetch
+rpi-imager
 
 # ==============================================================================
 # Stufe 1: Qt6, KDE Frameworks 6 (KF6), KDE Plasma 6 & KDE Gear Kernpakete
 # Werden ebenfalls mit maximalem Cortex-A76 Profil (-mcpu=cortex-a76+crypto -O3 + Graphite + LTO + C++ Devirt) gebaut
 # ==============================================================================
 
-# --- 10. Qt6 Core, QML, Wayland & Multimedia ---
+# --- 10. Qt6 Core, QML, Wayland, Netzwerk, Sensoren & Multimedia ---
 qt6-base
 qt6-svg
 qt6-imageformats
@@ -163,8 +195,20 @@ qt6-declarative
 qt6-wayland
 qt6-5compat
 qt6-multimedia
+qt6-quicktimeline
+qt6-networkauth
+qt6-websockets
+qt6-webchannel
+qt6-positioning
+qt6-serialport
+qt6-sensors
+qt6-connectivity
+qt6-scxml
+polkit-qt-1
+packagekit-qt
 
-# --- 11. KDE Frameworks 6 (KF6) ---
+# --- 11. KDE Frameworks 6 (KF6) Komplett-Stack (in Abhängigkeits-Reihenfolge) ---
+kf6-attica
 kf6-kcoreaddons
 kf6-kguiaddons
 kf6-kconfig
@@ -173,14 +217,58 @@ kf6-karchive
 kf6-ki18n
 kf6-kcodecs
 kf6-kwidgetsaddons
+kf6-kitemviews
+kf6-kitemmodels
+kf6-kcompletion
+kf6-kdbusaddons
+kf6-kcrash
+kf6-kglobalaccel
+kf6-kidletime
+kf6-kdnssd
+kf6-solid
+kf6-sonnet
+kf6-syntax-highlighting
+kf6-kpty
+kf6-kjobwidgets
 kf6-kservice
+kf6-kpackage
 kf6-kirigami
 kf6-ksvg
+kf6-kiconthemes
+kf6-knotifications
+kf6-kstatusnotifieritem
+kf6-kwallet
+kf6-kauth
+kf6-kconfigwidgets
+kf6-ktextwidgets
+kf6-kxmlgui
+kf6-kbookmarks
 kf6-kio
 kf6-kdeclarative
+kf6-kcmutils
+kf6-kparts
+kf6-knewstuff
+kf6-ktexteditor
+kf6-kfilemetadata
 kf6-baloo
+kf6-krunner
+kf6-purpose
+kf6-kded
+kf6-kdesu
+kf6-kpeople
+kf6-kcontacts
+kf6-modemmanager-qt
+kf6-networkmanager-qt
+kf6-bluez-qt
+kf6-prison
+kf6-syndication
+kf6-kuserfeedback
 
-# --- 12. KDE Plasma 6 Desktop & Wayland-Compositor (KWin) ---
+# --- 12. KDE Plasma 6 Desktop, QML-Styles & Wayland-Compositor (KWin) ---
+kirigami-addons
+kquickcharts
+qqc2-desktop-style
+qqc2-breeze-style
 layer-shell-qt
 kwayland
 libkscreen
@@ -198,6 +286,10 @@ plasma-activities
 plasma-activities-stats
 libplasma
 plasma5support
+milou
+kio-extras
+ffmpegthumbs
+kdegraphics-thumbnailers
 plasma-workspace
 plasma-desktop
 powerdevil
@@ -217,7 +309,13 @@ print-manager
 plasma-welcome
 sddm
 
-# --- 13. KDE Gear Anwendungen ---
+# --- 13. KDE Gear Anwendungen & Grafik-/Scanner-Bibliotheken ---
+libkexiv2
+libkdcraw
+ksanecore
+libksane
+kcolorpicker
+kimageannotator
 dolphin
 konsole
 kate
