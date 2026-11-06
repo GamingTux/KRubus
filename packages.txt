@@ -3,7 +3,7 @@
 # Werden mit maximalem Cortex-A76 Profil (-mcpu=cortex-a76+crypto -O3 + Graphite + LTO) gebaut
 # ==============================================================================
 
-# --- 1. Kompression, Prüfsummen, Archive & Dateisystem ---
+# --- 1. C-Standardbibliothek, Kompression, Prüfsummen, Archive & Dateisysteme ---
 glibc
 zlib
 lz4
@@ -20,26 +20,44 @@ gzip
 tar
 unzip
 zip
+libzip
 libarchive
+file
 btrfs-progs
+e2fsprogs
+dosfstools
+exfatprogs
+ntfs-3g
+fuse3
+parted
 
-# --- 2. Kryptographie, Mathe, TLS & Netzwerk-Protokolle (+crypto Hardware-AES/SHA) ---
+# --- 2. Kryptographie, Mathe, TLS, SSH, GPG & Netzwerk-Protokolle (+crypto Hardware-AES/SHA) ---
 gmp
 nettle
 libxcrypt
 libgcrypt20
+libgpg-error
+libassuan
 libsodium
 mbedtls
+libtasn1-6
+p11-kit
 gnutls28
 openssl
+gpgme1.0
+gnupg2
+c-ares
 nghttp2
 nghttp3
 ngtcp2
 libssh
 libssh2
+openssh
 curl
+libsoup3
+rsync
 
-# --- 3. Basis-Bibliotheken, Allocator, SIMD, Regex, XML/JSON, IPC & System-Daemons ---
+# --- 3. Basis-Bibliotheken, Shell/Core-Utils, Allocator, SIMD, Regex, XML/JSON, IPC & System-Daemons ---
 jemalloc
 highway
 double-conversion
@@ -48,28 +66,60 @@ pcre2
 re2
 expat
 icu
+uchardet
 libxml2
 libxslt
 json-c
 sqlite3
 glib2.0
 json-glib
+acl
+attr
+popt
+libcap2
+libseccomp
+pam
+coreutils
+findutils
+grep
+sed
+gawk
+dash
+bash
+util-linux
+liburing
+libusb-1.0
+hidapi
+libgudev
+systemd
 dbus
 dbus-broker
+policykit-1
 kmod
 wpa
 bluez
+avahi
 netplan.io
 network-manager
+libblockdev
+udisks2
+upower
+libmtp
 cups
 cups-filters
+sane-airscan
+ddcutil
+plymouth
+xdg-desktop-portal
+dpkg
+apt
 appstream
 packagekit
 ostree
 flatpak
 raspi-utils
 
-# --- 4. Display-Server, Wayland/X11 (+rpt), Input (+rpt), Vulkan & 3D/OpenGL-Stack ---
+# --- 4. Display-Server, Wayland/X11/XCB (+rpt), Input (+rpt), Vulkan & 3D/OpenGL-Stack ---
 libevdev
 mtdev
 tslib
@@ -78,7 +128,27 @@ wayland
 libxkbcommon
 libinput
 libdrm
+libdisplay-info
 libliftoff
+libxcb
+xcb-util
+xcb-util-wm
+xcb-util-image
+xcb-util-keysyms
+xcb-util-renderutil
+xcb-util-cursor
+libx11
+libxext
+libxrender
+libxfixes
+libxdamage
+libxcomposite
+libxrandr
+libxi
+libxtst
+libxcursor
+libglvnd
+libva
 vulkan-loader
 vulkan-volk
 glslang
@@ -92,7 +162,7 @@ xorg-server
 xwayland
 libsdl2
 
-# --- 5. Schrift-, Farb-, Bild-, SVG- & PDF-Rendering-Engines ---
+# --- 5. Schrift-, Farb-, Bild-, SVG-, Dokument- & PDF-Rendering-Engines ---
 libpng1.6
 libjpeg-turbo
 libwebp
@@ -107,11 +177,16 @@ freetype
 fribidi
 harfbuzz
 fontconfig
+hunspell
+aspell
+enchant-2
 cairo
 gdk-pixbuf
 pango1.0
 librsvg
 qpdf
+djvulibre
+libspectre
 poppler
 
 # --- 6. Moderne Bild- & Video-Codecs (SIMD / NEON / DotProd) & Pi 5 Kamera/ISP (+rpt) ---
@@ -134,6 +209,7 @@ libtheora
 zimg
 libass
 libplacebo
+v4l-utils
 libpisp
 kms++
 libcamera
@@ -155,6 +231,12 @@ libsamplerate
 libsoxr
 speexdsp
 webrtc-audio-processing
+soundtouch
+rubberband
+openal-soft
+taglib
+chromaprint
+libebur128
 alsa-lib
 alsa-utils
 pulseaudio
@@ -207,6 +289,9 @@ qt6-connectivity
 qt6-scxml
 polkit-qt-1
 packagekit-qt
+phonon
+qcoro
+futuresql
 
 # --- 11. KDE Frameworks 6 (KF6) Komplett-Stack (in Abhängigkeits-Reihenfolge) ---
 kf6-attica
@@ -309,6 +394,7 @@ plasma-browser-integration
 print-manager
 plasma-welcome
 sddm
+sddm-kcm
 
 # --- 13. KDE Gear Anwendungen & Grafik-/Scanner-Bibliotheken ---
 libkexiv2
@@ -327,6 +413,17 @@ kde-spectacle
 kcalc
 skanpage
 kdeconnect
+partitionmanager
+filelight
+kwalletmanager
+ksystemlog
+kfind
+kdialog
+kcharselect
+haruna
+elisa-player
+kolourpaint
+isoimagewriter
 
 # ==============================================================================
 # Stufe 2: Raspberry Pi 5 Custom Kernel (nur Flavour rpi-2712, 16K Pages, 1000 Hz)
