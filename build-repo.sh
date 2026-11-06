@@ -13,11 +13,12 @@ export DPKG_GENSYMBOLS_CHECK_LEVEL=0
 STRIP_FLAGS="-g -O2 -mbranch-protection=standard"
 # 2. Exaktes Cortex-A76 Target inkl. Crypto/FP16/DotProd/RCPC, ohne alte Pi-3/A53-Errata-NOPs, mit Arm Early-RA
 ARCH_FLAGS="-mcpu=cortex-a76+crypto -mtune=cortex-a76 -mno-fix-cortex-a53-835769 -mno-fix-cortex-a53-843419 -mbranch-protection=none -mno-outline-atomics -mearly-ra=all"
-# 3. Maximale Code-Gen-, Inlining-, Loop-Nest- & Polyhedral-Optimierung (Graphite)
-OPT_FLAGS="-O3 -ftree-vectorize -fvect-cost-model=dynamic -fomit-frame-pointer -fno-semantic-interposition -fno-plt -fipa-pta -floop-interchange -floop-unroll-and-jam -fpeel-loops -funroll-loops -ftracer -fgraphite-identity -floop-nest-optimize -g0"
+# 3. Maximale Code-Gen-, Inlining-, Loop-Nest- & Polyhedral-Optimierung (Graphite) + Schutz vor -Werror Abbrüchen unter -O3
+OPT_FLAGS="-O3 -ftree-vectorize -fvect-cost-model=dynamic -fomit-frame-pointer -fno-semantic-interposition -floop-interchange -floop-unroll-and-jam -fpeel-loops -funroll-loops -ftracer -fgraphite-identity -floop-nest-optimize -Wno-error=array-bounds -Wno-error=stringop-overflow -Wno-error=maybe-uninitialized -g0"
+SAFE_OPT_FLAGS="-O2 -ftree-vectorize -fvect-cost-model=dynamic -fomit-frame-pointer -Wno-error=array-bounds -Wno-error=stringop-overflow -Wno-error=maybe-uninitialized -g0"
 # 4. Vollständige Link-Time Optimization (inkl. C++ Devirtualisierung & Fat-LTO-Objects für statische .a-Archive)
 LTO_FLAGS="-flto=auto -ffat-lto-objects -fuse-linker-plugin -fdevirtualize-at-ltrans"
-LINK_FLAGS="-Wl,-O3 -Wl,--as-needed -Wl,-Bsymbolic-functions"
+LINK_FLAGS="-Wl,-O3 -Wl,--as-needed"
 
 SCRIPT_START_TIME="$(date +%s)"
 # 4h 45m (17100s) Zeitbudget pro GitHub-Actions-Lauf (Sicherheitsabstand zum 6h-Hard-Limit)
@@ -242,15 +243,24 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
       # libgcrypt20 ersetzt in random/Makefile per sed das erste -O2 durch -O0 für jitterentropy; kein -O3 anhängen
       export DEB_CFLAGS_MAINT_STRIP="-g -mbranch-protection=standard"
       export DEB_CXXFLAGS_MAINT_STRIP="-g -mbranch-protection=standard"
-      export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS -fomit-frame-pointer -fno-plt -g0"
-      export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS -fomit-frame-pointer -fno-plt -g0"
+      export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS -fomit-frame-pointer -g0"
+      export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS -fomit-frame-pointer -g0"
       export DEB_LDFLAGS_MAINT_APPEND="$LINK_FLAGS"
       ;;
-    xorg-server)
+    jemalloc)
+      USE_LTO=0
+      OPT_LEVEL="-O3 (malloc-interpose)"
+      # jemalloc benötigt Standard-Symbol-Interposition für malloc/free Ersatz
+      export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS -O3 -ftree-vectorize -fomit-frame-pointer -funroll-loops -g0"
+      export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS -O3 -ftree-vectorize -fomit-frame-pointer -funroll-loops -g0"
+      export DEB_LDFLAGS_MAINT_APPEND="$LINK_FLAGS"
+      ;;
+    xz-utils|tar|re2|gmp|libxcrypt|nettle|gnutls28|openssl|highway|icu|glib2.0|xorg-server|mesa|xwayland|librsvg|poppler|aom|svt-av1|jpeg-xl|libplacebo|alsa-lib|pulseaudio|pipewire|wireplumber|gstreamer1.0|gst-plugins-base1.0|gst-plugins-good1.0|gst-plugins-bad1.0|gst-plugins-ugly1.0|gst-libav1.0|ffmpeg|mpv|vlc|gtk+3.0|gtk4|python3.13|btop|libcamera|rpicam-apps|vulkan-loader|glslang|spirv-tools|shaderc|qt6-*|kf6-*|kwin|plasma-*|libplasma|breeze*|dolphin|konsole|kate|gwenview|okular|ark|kde-*)
+      # Aus LMPE bekannte Pakete mit Inline-ASM, Rust oder Linker-Version-Scripts direkt ohne LTO-Umweg mit vollem -O3+Graphite bauen
       USE_LTO=0
       OPT_LEVEL="-O3"
-      export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_FLAGS -Wno-error=array-bounds"
-      export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_FLAGS -Wno-error=array-bounds"
+      export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_FLAGS"
+      export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_FLAGS"
       export DEB_LDFLAGS_MAINT_APPEND="$LINK_FLAGS"
       ;;
     *)
@@ -429,27 +439,35 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
     fi
   fi
 
-  # Paket kompilieren mit 60-Sekunden-Heartbeat (inkl. automatischem Non-LTO- und Binary-Arch-Fallback)
+  # Paket kompilieren mit 60-Sekunden-Heartbeat (inkl. 3-stufigem Self-Healing-Fallback: LTO -> Non-LTO -O3 -> Safe -O2 -B)
   if [[ "$STEP_OK" -eq 1 ]]; then
     BUILD_MODE="-b"
     [[ "$pkg" == "xz-utils" ]] && BUILD_MODE="-B"
     if ! run_dpkg_build_with_heartbeat "$pkg" "$CURRENT" "$TOTAL" "$LOG_FILE" "$BUILD_MODE"; then
       if [[ "$USE_LTO" -eq 1 ]]; then
-        echo "   🔄 [$CURRENT/$TOTAL] LTO-Build für $pkg fehlgeschlagen – wiederhole automatisch ohne LTO (mit vollem $ARCH_FLAGS $OPT_FLAGS)..."
+        echo "   🔄 [$CURRENT/$TOTAL] LTO-Build für $pkg fehlgeschlagen – wiederhole automatisch ohne LTO (mit vollem $ARCH_FLAGS -O3)..."
         OPT_LEVEL="-O3"
         export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_FLAGS"
         export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_FLAGS"
         export DEB_LDFLAGS_MAINT_APPEND="$LINK_FLAGS"
         debian/rules clean < /dev/null >> "$LOG_FILE" 2>&1 || true
         if ! run_dpkg_build_with_heartbeat "$pkg" "$CURRENT" "$TOTAL" "$LOG_FILE" "$BUILD_MODE"; then
-          echo "   🔄 [$CURRENT/$TOTAL] Build (-b) ohne LTO fehlgeschlagen – wiederhole als Binary-Arch-Only (-B)..."
+          echo "   🔄 [$CURRENT/$TOTAL] Build (-b) für $pkg fehlgeschlagen – wiederhole mit Safe-Cortex-A76 (-O2 -B)..."
+          OPT_LEVEL="-O2"
+          export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS $SAFE_OPT_FLAGS"
+          export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS $SAFE_OPT_FLAGS"
+          export DEB_LDFLAGS_MAINT_APPEND="$LINK_FLAGS"
           debian/rules clean < /dev/null >> "$LOG_FILE" 2>&1 || true
           if ! run_dpkg_build_with_heartbeat "$pkg" "$CURRENT" "$TOTAL" "$LOG_FILE" "-B"; then
             STEP_OK=0
           fi
         fi
       else
-        echo "   🔄 [$CURRENT/$TOTAL] Build (-b) für $pkg fehlgeschlagen – wiederhole automatisch als Binary-Arch-Only (-B)..."
+        echo "   🔄 [$CURRENT/$TOTAL] Build (-b) für $pkg fehlgeschlagen – wiederhole automatisch mit Safe-Cortex-A76 (-O2 -B)..."
+        OPT_LEVEL="-O2"
+        export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS $SAFE_OPT_FLAGS"
+        export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS $SAFE_OPT_FLAGS"
+        export DEB_LDFLAGS_MAINT_APPEND="$LINK_FLAGS"
         debian/rules clean < /dev/null >> "$LOG_FILE" 2>&1 || true
         if ! run_dpkg_build_with_heartbeat "$pkg" "$CURRENT" "$TOTAL" "$LOG_FILE" "-B"; then
           STEP_OK=0
