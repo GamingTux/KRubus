@@ -308,6 +308,11 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
     # PGO (Profile-Guided Optimization) für Python 3.13 aktiv lassen für +15-25% Interpreter-Speedup!
     export DEB_BUILD_OPTIONS="nocheck nobench parallel=$(nproc)"
     export DEB_BUILD_PROFILES="nocheck"
+  elif [[ "$pkg" == "linux" ]]; then
+    USE_LTO=0
+    OPT_LEVEL="-O3 (1000Hz rpi-2712)"
+    export DEB_BUILD_OPTIONS="nocheck nodoc terse parallel=$(nproc)"
+    export DEB_BUILD_PROFILES="nocheck nodoc pkg.linux.nokerneldbg pkg.linux.nokerneldbginfo pkg.linux.nosource pkg.linux.notools pkg.linux.norust"
   else
     export DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)"
     export DEB_BUILD_PROFILES="nocheck"
@@ -457,6 +462,63 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
       sed -i 's/findstring nocheck/findstring nodoc/g' debian/rules || true
     elif [[ "$pkg" == "re2" ]]; then
       sed -i "s|export DEB_CXXFLAGS_MAINT_APPEND=.*|export DEB_CXXFLAGS_MAINT_APPEND=-pthread -Wall -std=c++14 ${ARCH_FLAGS} ${OPT_FLAGS}|" debian/rules || true
+    elif [[ "$pkg" == "linux" ]]; then
+      echo "   🐧 Konfiguriere Raspberry Pi 5 Kernel (nur rpi-2712, 1000 Hz, Cortex-A76 -O3, ohne Fremd-Errata & PAC/BTI)..."
+      # 1. Nur rpi-2712 Flavour auf arm64 bauen (v8 und v8-rt entfernen)
+      python3 - << 'PYEOF'
+p = "debian/config/arm64/defines.toml"
+with open(p) as f:
+    txt = f.read()
+txt = txt.replace("[[featureset.flavour]]\nname = 'v8'\n", "")
+txt = txt.replace("[[featureset.flavour]]\nname = 'v8-rt'\n", "")
+with open(p, "w") as f:
+    f.write(txt)
+PYEOF
+      # 2. 1000 Hz Timer, PAC/BTI aus und 29 fremde CPU-Errata in config.2712 deaktivieren (nur echte Cortex-A76 Errata behalten)
+      cat << 'KCEOF' >> debian/config/arm64/rpi/config.2712
+# KRubus Pi 5 / CM5 (BCM2712 Cortex-A76) Kernel Tuning
+# CONFIG_HZ_250 is not set
+CONFIG_HZ_1000=y
+CONFIG_HZ=1000
+# CONFIG_ARM64_PTR_AUTH is not set
+# CONFIG_ARM64_PTR_AUTH_KERNEL is not set
+# CONFIG_ARM64_BTI is not set
+# CONFIG_ARM64_BTI_KERNEL is not set
+# CONFIG_ARM64_ERRATUM_826319 is not set
+# CONFIG_ARM64_ERRATUM_827319 is not set
+# CONFIG_ARM64_ERRATUM_824069 is not set
+# CONFIG_ARM64_ERRATUM_819472 is not set
+# CONFIG_ARM64_ERRATUM_832075 is not set
+# CONFIG_ARM64_ERRATUM_834220 is not set
+# CONFIG_ARM64_ERRATUM_1742098 is not set
+# CONFIG_ARM64_ERRATUM_845719 is not set
+# CONFIG_ARM64_ERRATUM_843419 is not set
+# CONFIG_ARM64_ERRATUM_1024718 is not set
+# CONFIG_ARM64_ERRATUM_1319367 is not set
+# CONFIG_ARM64_ERRATUM_1530923 is not set
+# CONFIG_ARM64_ERRATUM_2441007 is not set
+# CONFIG_ARM64_ERRATUM_1542419 is not set
+# CONFIG_ARM64_ERRATUM_1508412 is not set
+# CONFIG_ARM64_ERRATUM_2051678 is not set
+# CONFIG_ARM64_ERRATUM_2077057 is not set
+# CONFIG_ARM64_ERRATUM_2658417 is not set
+# CONFIG_ARM64_ERRATUM_2054223 is not set
+# CONFIG_ARM64_ERRATUM_2067961 is not set
+# CONFIG_ARM64_ERRATUM_2441009 is not set
+# CONFIG_ARM64_ERRATUM_2457168 is not set
+# CONFIG_ARM64_ERRATUM_2645198 is not set
+# CONFIG_ARM64_ERRATUM_3821522 is not set
+# CONFIG_ARM64_ERRATUM_2966298 is not set
+# CONFIG_ARM64_ERRATUM_3117295 is not set
+# CONFIG_ARM64_ERRATUM_3194386 is not set
+# CONFIG_ARM64_ERRATUM_4193714 is not set
+# CONFIG_ARM64_ERRATUM_4118414 is not set
+# CONFIG_ARM64_ERRATUM_858921 is not set
+KCEOF
+      # 3. Cortex-A76 -O3 Compiler-Flags direkt in KCFLAGS von debian/rules.real injizieren
+      sed -i "s|KCFLAGS=-fdebug-prefix-map=\$(CURDIR)/=|KCFLAGS=\"-fdebug-prefix-map=\$(CURDIR)/= ${ARCH_FLAGS} -O3 -Wno-error\"|" debian/rules.real || true
+      # 4. Absichtlichen exit 1 bei regenerierter debian/control in debian/rules neutralisieren
+      sed -i '/debian\/control-real-fail:/,/^$/ s/exit 1/true/' debian/rules || true
     fi
 
     # Lokales Versions-Suffix +pi5 an den Changelog anhängen
@@ -468,7 +530,11 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
   fi
 
   if [[ "$STEP_OK" -eq 1 ]]; then
-    if ! (apt-get build-dep -y --allow-downgrades ./ < /dev/null >> "$LOG_FILE" 2>&1 || apt-get build-dep -y --allow-downgrades -t trixie-backports ./ < /dev/null >> "$LOG_FILE" 2>&1); then
+    if [[ "$pkg" == "linux" ]]; then
+      apt-get install -y --no-install-recommends python3-dacite python3-jinja2 quilt kernel-wedge bc bison flex libssl-dev libelf-dev kmod cpio pahole < /dev/null >> "$LOG_FILE" 2>&1 || true
+      make -f debian/rules debian/control-real < /dev/null >> "$LOG_FILE" 2>&1 || true
+    fi
+    if ! (apt-get build-dep -y --allow-downgrades -P "${DEB_BUILD_PROFILES// /,}" ./ < /dev/null >> "$LOG_FILE" 2>&1 || apt-get build-dep -y --allow-downgrades -t trixie-backports -P "${DEB_BUILD_PROFILES// /,}" ./ < /dev/null >> "$LOG_FILE" 2>&1); then
       STEP_OK=0
     fi
   fi

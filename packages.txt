@@ -326,3 +326,9 @@ kde-spectacle
 kcalc
 skanpage
 kdeconnect
+
+# ==============================================================================
+# Stufe 2: Raspberry Pi 5 Custom Kernel (nur Flavour rpi-2712, 16K Pages, 1000 Hz)
+# Gebaut mit -mcpu=cortex-a76+crypto -O3, ohne fremde CPU-Errata & ohne PAC/BTI
+# ==============================================================================
+linux
