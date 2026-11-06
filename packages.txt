@@ -1,6 +1,6 @@
 # ==============================================================================
 # Stufe 0: Performance-Hotspots, Raspberry Pi (+rpt) & Debian Trixie Systempakete
-# Werden mit -march=armv8.2-a+crypto+fp16+dotprod -mtune=cortex-a76 -ftree-vectorize -O3 gebaut
+# Werden mit maximalem Cortex-A76 Profil (-mcpu=cortex-a76+crypto -O3 + Graphite + LTO) gebaut
 # ==============================================================================
 
 # --- 1. Kompression, Prüfsummen, Archive & Dateisystem ---
@@ -151,7 +151,7 @@ fastfetch
 
 # ==============================================================================
 # Stufe 1: Qt6, KDE Frameworks 6 (KF6), KDE Plasma 6 & KDE Gear Kernpakete
-# Werden stabil mit -march=armv8.2-a+crypto+fp16+dotprod -mtune=cortex-a76 -ftree-vectorize -O2 gebaut
+# Werden ebenfalls mit maximalem Cortex-A76 Profil (-mcpu=cortex-a76+crypto -O3 + Graphite + LTO + C++ Devirt) gebaut
 # ==============================================================================
 
 # --- 10. Qt6 Core, QML, Wayland & Multimedia ---

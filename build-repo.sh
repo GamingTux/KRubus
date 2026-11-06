@@ -8,10 +8,16 @@ export DEB_BUILD_PROFILES="nocheck"
 # Verhindert dpkg-gensymbols Abbrüche bei C++/Qt6/KF6 Template-Inlining durch Cortex-A76 Optimierungen
 export DPKG_GENSYMBOLS_CHECK_LEVEL=0
 
-# Basis-Architektur-Flags für den BCM2712 (Cortex-A76)
-# -ffat-lto-objects stellt sicher, dass statische .a-Archive nach dh_strip ihre Symbole behalten
-ARCH_FLAGS="-march=armv8.2-a+crypto+fp16+dotprod -mtune=cortex-a76 -ftree-vectorize"
-LTO_FLAGS="-flto=auto -ffat-lto-objects"
+# Basis-Architektur- & High-End-Optimierungs-Flags für den BCM2712 (Cortex-A76, Pi 5 & CM5)
+# 1. Entfernt Debians generische Standard-Flags (-g, -O2 und das auf Armv8.2 nutzlose PAC/BTI -mbranch-protection=standard)
+STRIP_FLAGS="-g -O2 -mbranch-protection=standard"
+# 2. Exaktes Cortex-A76 Target inkl. Crypto/FP16/DotProd/RCPC, ohne alte Pi-3/A53-Errata-NOPs, mit Arm Early-RA
+ARCH_FLAGS="-mcpu=cortex-a76+crypto -mtune=cortex-a76 -mno-fix-cortex-a53-835769 -mno-fix-cortex-a53-843419 -mbranch-protection=none -mno-outline-atomics -mearly-ra=all"
+# 3. Maximale Code-Gen-, Inlining-, Loop-Nest- & Polyhedral-Optimierung (Graphite)
+OPT_FLAGS="-O3 -ftree-vectorize -fvect-cost-model=dynamic -fomit-frame-pointer -fno-semantic-interposition -fno-plt -fipa-pta -floop-interchange -floop-unroll-and-jam -fpeel-loops -funroll-loops -ftracer -fgraphite-identity -floop-nest-optimize -g0"
+# 4. Vollständige Link-Time Optimization (inkl. C++ Devirtualisierung & Fat-LTO-Objects für statische .a-Archive)
+LTO_FLAGS="-flto=auto -ffat-lto-objects -fuse-linker-plugin -fdevirtualize-at-ltrans"
+LINK_FLAGS="-Wl,-O3 -Wl,--as-needed -Wl,-Bsymbolic-functions"
 
 SCRIPT_START_TIME="$(date +%s)"
 # 4h 45m (17100s) Zeitbudget pro GitHub-Actions-Lauf (Sicherheitsabstand zum 6h-Hard-Limit)
@@ -223,47 +229,41 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
   LOG_FILE="/tmp/build-${pkg}.log"
   : > "$LOG_FILE"
 
-  # 1. Optimierungsstufe setzen (-O2 für Stufe 1 Qt6/KF6/KDE Plasma 6 & Apps, -O3 für alle Stufe-0-Pakete)
-  case "$pkg" in
-    qt6-*|kf6-*|layer-shell-qt|kwayland|libkscreen|kdecoration|libksysguard|ksystemstats|breeze*|kde-*|kglobalacceld|kscreenlocker|kpipewire|kwin|plasma-*|libplasma|plasma5support|powerdevil|kscreen|bluedevil|polkit-kde-agent-1|systemsettings|kinfocenter|xdg-desktop-portal-kde|print-manager|sddm|dolphin|konsole|kate|gwenview|okular|ark|kcalc|skanpage|kdeconnect)
-      OPT_LEVEL="-O2"
-      ;;
-    *)
-      OPT_LEVEL="-O3"
-      ;;
-  esac
-
-  # Große Pakete mit eigenem Assembler-/Rust-/Symbol-Versioning oder C++/Qt-Stack direkt ohne erzwungenes LTO im Linker bauen
+  # 1. Maximales Performance-Profil (-O3 + Graphite + Loop-Nest + LTO für alle Pakete; automatischer Fallback greift bei Inline-ASM-Konflikten)
+  OPT_LEVEL="-O3+LTO"
   USE_LTO=1
+  export DEB_CFLAGS_MAINT_STRIP="$STRIP_FLAGS"
+  export DEB_CXXFLAGS_MAINT_STRIP="$STRIP_FLAGS"
+
   case "$pkg" in
     libgcrypt20)
       USE_LTO=0
-      export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS"
-      export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS"
-      export DEB_LDFLAGS_MAINT_APPEND=""
+      OPT_LEVEL="-O2 (jitterentropy-safe)"
+      # libgcrypt20 ersetzt in random/Makefile per sed das erste -O2 durch -O0 für jitterentropy; kein -O3 anhängen
+      export DEB_CFLAGS_MAINT_STRIP="-g -mbranch-protection=standard"
+      export DEB_CXXFLAGS_MAINT_STRIP="-g -mbranch-protection=standard"
+      export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS -fomit-frame-pointer -fno-plt -g0"
+      export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS -fomit-frame-pointer -fno-plt -g0"
+      export DEB_LDFLAGS_MAINT_APPEND="$LINK_FLAGS"
       ;;
     xorg-server)
       USE_LTO=0
-      export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_LEVEL -Wno-error=array-bounds"
-      export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_LEVEL -Wno-error=array-bounds"
-      export DEB_LDFLAGS_MAINT_APPEND=""
-      ;;
-    xz-utils|tar|re2|gmp|libxcrypt|nettle|gnutls28|openssl|jemalloc|highway|icu|glib2.0|mesa|xwayland|librsvg|poppler|aom|svt-av1|jpeg-xl|libplacebo|alsa-lib|pulseaudio|pipewire|wireplumber|gstreamer1.0|gst-plugins-base1.0|gst-plugins-good1.0|gst-plugins-bad1.0|gst-plugins-ugly1.0|gst-libav1.0|ffmpeg|mpv|vlc|gtk+3.0|gtk4|python3.13|btop|qt6-*|kf6-*|layer-shell-qt|kwayland|libkscreen|kdecoration|libksysguard|ksystemstats|breeze*|kde-*|kglobalacceld|kscreenlocker|kpipewire|kwin|plasma-*|libplasma|plasma5support|powerdevil|kscreen|bluedevil|polkit-kde-agent-1|systemsettings|kinfocenter|xdg-desktop-portal-kde|print-manager|sddm|dolphin|konsole|kate|gwenview|okular|ark|kcalc|skanpage|kdeconnect)
-      USE_LTO=0
-      export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_LEVEL"
-      export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_LEVEL"
-      export DEB_LDFLAGS_MAINT_APPEND=""
+      OPT_LEVEL="-O3"
+      export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_FLAGS -Wno-error=array-bounds"
+      export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_FLAGS -Wno-error=array-bounds"
+      export DEB_LDFLAGS_MAINT_APPEND="$LINK_FLAGS"
       ;;
     *)
-      export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS $LTO_FLAGS $OPT_LEVEL"
-      export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS $LTO_FLAGS $OPT_LEVEL"
-      export DEB_LDFLAGS_MAINT_APPEND="$LTO_FLAGS"
+      export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_FLAGS $LTO_FLAGS"
+      export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_FLAGS $LTO_FLAGS"
+      export DEB_LDFLAGS_MAINT_APPEND="$LTO_FLAGS $LINK_FLAGS"
       ;;
   esac
 
   if [[ "$pkg" == "python3.13" ]]; then
-    export DEB_BUILD_OPTIONS="nocheck nopgo nobench parallel=$(nproc)"
-    export DEB_BUILD_PROFILES="nocheck nopgo"
+    # PGO (Profile-Guided Optimization) für Python 3.13 aktiv lassen für +15-25% Interpreter-Speedup!
+    export DEB_BUILD_OPTIONS="nocheck nobench parallel=$(nproc)"
+    export DEB_BUILD_PROFILES="nocheck"
   else
     export DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)"
     export DEB_BUILD_PROFILES="nocheck"
@@ -412,7 +412,7 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
     if [[ "$pkg" == "xz-utils" ]]; then
       sed -i 's/findstring nocheck/findstring nodoc/g' debian/rules || true
     elif [[ "$pkg" == "re2" ]]; then
-      sed -i "s|export DEB_CXXFLAGS_MAINT_APPEND=.*|export DEB_CXXFLAGS_MAINT_APPEND=-pthread -Wall -std=c++14 ${ARCH_FLAGS} ${OPT_LEVEL}|" debian/rules || true
+      sed -i "s|export DEB_CXXFLAGS_MAINT_APPEND=.*|export DEB_CXXFLAGS_MAINT_APPEND=-pthread -Wall -std=c++14 ${ARCH_FLAGS} ${OPT_FLAGS}|" debian/rules || true
     fi
 
     # Lokales Versions-Suffix +pi5 an den Changelog anhängen
@@ -435,13 +435,18 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
     [[ "$pkg" == "xz-utils" ]] && BUILD_MODE="-B"
     if ! run_dpkg_build_with_heartbeat "$pkg" "$CURRENT" "$TOTAL" "$LOG_FILE" "$BUILD_MODE"; then
       if [[ "$USE_LTO" -eq 1 ]]; then
-        echo "   🔄 [$CURRENT/$TOTAL] LTO-Build für $pkg fehlgeschlagen – wiederhole automatisch ohne LTO (mit $ARCH_FLAGS $OPT_LEVEL)..."
-        export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_LEVEL"
-        export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_LEVEL"
-        export DEB_LDFLAGS_MAINT_APPEND=""
+        echo "   🔄 [$CURRENT/$TOTAL] LTO-Build für $pkg fehlgeschlagen – wiederhole automatisch ohne LTO (mit vollem $ARCH_FLAGS $OPT_FLAGS)..."
+        OPT_LEVEL="-O3"
+        export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_FLAGS"
+        export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_FLAGS"
+        export DEB_LDFLAGS_MAINT_APPEND="$LINK_FLAGS"
         debian/rules clean < /dev/null >> "$LOG_FILE" 2>&1 || true
         if ! run_dpkg_build_with_heartbeat "$pkg" "$CURRENT" "$TOTAL" "$LOG_FILE" "$BUILD_MODE"; then
-          STEP_OK=0
+          echo "   🔄 [$CURRENT/$TOTAL] Build (-b) ohne LTO fehlgeschlagen – wiederhole als Binary-Arch-Only (-B)..."
+          debian/rules clean < /dev/null >> "$LOG_FILE" 2>&1 || true
+          if ! run_dpkg_build_with_heartbeat "$pkg" "$CURRENT" "$TOTAL" "$LOG_FILE" "-B"; then
+            STEP_OK=0
+          fi
         fi
       else
         echo "   🔄 [$CURRENT/$TOTAL] Build (-b) für $pkg fehlgeschlagen – wiederhole automatisch als Binary-Arch-Only (-B)..."

@@ -8,10 +8,13 @@
 
 Alle Pakete in [`packages.txt`](./packages.txt) werden automatisiert über GitHub Actions nativ auf ARM64 gebaut und über GitHub Pages (`gh-pages`) ausgeliefert:
 
-- **Compiler-Flags (Stufe 0 – System, Crypto, Wayland/Mesa, Codecs, PipeWire, FFmpeg):**
-  `-march=armv8.2-a+crypto+fp16+dotprod -mtune=cortex-a76 -ftree-vectorize -O3` (+ Fat-LTO wo unterstützt)
-- **Compiler-Flags (Stufe 1 – Qt6, KDE Frameworks 6, KDE Plasma 6 & KDE Gear):**
-  `-march=armv8.2-a+crypto+fp16+dotprod -mtune=cortex-a76 -ftree-vectorize -O2`
+- **Target & Mikroarchitektur (`ARCH_FLAGS`):**
+  `-mcpu=cortex-a76+crypto -mtune=cortex-a76 -mno-fix-cortex-a53-835769 -mno-fix-cortex-a53-843419 -mbranch-protection=none -mno-outline-atomics -mearly-ra=all`
+- **Code-Gen, Loop-Nest & Polyhedral-Optimizer (`OPT_FLAGS` – durchgehend für alle Stufen inkl. Qt6 & KDE Plasma 6):**
+  `-O3 -ftree-vectorize -fvect-cost-model=dynamic -fomit-frame-pointer -fno-semantic-interposition -fno-plt -fipa-pta -floop-interchange -floop-unroll-and-jam -fpeel-loops -funroll-loops -ftracer -fgraphite-identity -floop-nest-optimize -g0`
+- **Link-Time Optimization & Linker (`LTO_FLAGS` & `LINK_FLAGS`):**
+  `-flto=auto -ffat-lto-objects -fuse-linker-plugin -fdevirtualize-at-ltrans -Wl,-O3 -Wl,--as-needed -Wl,-Bsymbolic-functions`
+- **Python 3.13 PGO:** Voller Profile-Guided-Optimization-Trainingslauf aktiviert.
 
 ### 🌐 Web-Katalog & APT-Einbindung
 
