@@ -4,6 +4,7 @@
 # ==============================================================================
 
 # --- 1. Kompression, Prüfsummen, Archive & Dateisystem ---
+glibc
 zlib
 lz4
 libzstd

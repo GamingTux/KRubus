@@ -11,14 +11,14 @@ export DPKG_GENSYMBOLS_CHECK_LEVEL=0
 # Basis-Architektur- & High-End-Optimierungs-Flags für den BCM2712 (Cortex-A76, Pi 5 & CM5)
 # 1. Entfernt Debians generische Standard-Flags (-g, -O2 und das auf Armv8.2 nutzlose PAC/BTI -mbranch-protection=standard)
 STRIP_FLAGS="-g -O2 -mbranch-protection=standard"
-# 2. Exaktes Cortex-A76 Target inkl. Crypto/FP16/DotProd/RCPC, ohne alte Pi-3/A53-Errata-NOPs, mit Arm Early-RA
-ARCH_FLAGS="-mcpu=cortex-a76+crypto -mtune=cortex-a76 -mno-fix-cortex-a53-835769 -mno-fix-cortex-a53-843419 -mbranch-protection=none -mno-outline-atomics -mearly-ra=all"
-# 3. Maximale Code-Gen-, Inlining-, Loop-Nest- & Polyhedral-Optimierung (Graphite) + Schutz vor -Werror Abbrüchen unter -O3
-OPT_FLAGS="-O3 -ftree-vectorize -fvect-cost-model=dynamic -fomit-frame-pointer -fno-semantic-interposition -floop-interchange -floop-unroll-and-jam -fpeel-loops -funroll-loops -ftracer -fgraphite-identity -floop-nest-optimize -Wno-error=array-bounds -Wno-error=stringop-overflow -Wno-error=maybe-uninitialized -g0"
-SAFE_OPT_FLAGS="-O2 -ftree-vectorize -fvect-cost-model=dynamic -fomit-frame-pointer -Wno-error=array-bounds -Wno-error=stringop-overflow -Wno-error=maybe-uninitialized -g0"
-# 4. Vollständige Link-Time Optimization (inkl. C++ Devirtualisierung & Fat-LTO-Objects für statische .a-Archive)
+# 2. Exaktes Cortex-A76 Target inkl. Crypto/FP16/DotProd/RCPC, ohne alte Pi-3/A53-Errata-NOPs, mit Arm Early-RA & BCM2712 L1/L2 Cache-Geometrie (64KB L1d, 64B Line, 512KB L2)
+ARCH_FLAGS="-mcpu=cortex-a76+crypto -mtune=cortex-a76 -mno-fix-cortex-a53-835769 -mno-fix-cortex-a53-843419 -mbranch-protection=none -mno-outline-atomics -mearly-ra=all --param l1-cache-size=64 --param l1-cache-line-size=64 --param l2-cache-size=512"
+# 3. Maximale Code-Gen-, Inlining-, IEEE-sichere FP-SIMD- (-fno-math-errno -fno-trapping-math -ffp-contract=fast), Prefetch-, Loop-Nest- & Polyhedral-Optimierung (Graphite)
+OPT_FLAGS="-O3 -ftree-vectorize -fvect-cost-model=dynamic -fomit-frame-pointer -fno-semantic-interposition -fno-math-errno -fno-trapping-math -ffp-contract=fast -fprefetch-loop-arrays -floop-interchange -floop-unroll-and-jam -fpeel-loops -funroll-loops -ftracer -fgraphite-identity -floop-nest-optimize -Wno-error=array-bounds -Wno-error=stringop-overflow -Wno-error=maybe-uninitialized -g0"
+SAFE_OPT_FLAGS="-O2 -ftree-vectorize -fvect-cost-model=dynamic -fomit-frame-pointer -fno-math-errno -fno-trapping-math -ffp-contract=fast -Wno-error=array-bounds -Wno-error=stringop-overflow -Wno-error=maybe-uninitialized -g0"
+# 4. Vollständige Link-Time Optimization & 16K-Hardware-Page-Alignment für den rpi-2712 Kernel
 LTO_FLAGS="-flto=auto -ffat-lto-objects -fuse-linker-plugin -fdevirtualize-at-ltrans"
-LINK_FLAGS="-Wl,-O3 -Wl,--as-needed"
+LINK_FLAGS="-Wl,-O3 -Wl,--as-needed -Wl,--hash-style=gnu -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384"
 
 SCRIPT_START_TIME="$(date +%s)"
 # 4h 45m (17100s) Zeitbudget pro GitHub-Actions-Lauf (Sicherheitsabstand zum 6h-Hard-Limit)
@@ -308,6 +308,11 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
     # PGO (Profile-Guided Optimization) für Python 3.13 aktiv lassen für +15-25% Interpreter-Speedup!
     export DEB_BUILD_OPTIONS="nocheck nobench parallel=$(nproc)"
     export DEB_BUILD_PROFILES="nocheck"
+  elif [[ "$pkg" == "glibc" ]]; then
+    USE_LTO=0
+    OPT_LEVEL="-O3 (Cortex-A76 glibc)"
+    export DEB_BUILD_OPTIONS="nocheck nodoc parallel=$(nproc)"
+    export DEB_BUILD_PROFILES="nocheck nodoc noudeb nobiarch"
   elif [[ "$pkg" == "linux" ]]; then
     USE_LTO=0
     OPT_LEVEL="-O3 (1000Hz rpi-2712)"
@@ -457,11 +462,33 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
   if [[ "$STEP_OK" -eq 1 ]]; then
     cd "$SRC_DIR"
 
-    # Paket-spezifische Upstream-/Debian-Rules-Quirks beheben
+    # Globaler Schutz: Verhindert, dass Pakete in debian/rules (wie mesa oder re2) unser DEB_*FLAGS_MAINT_APPEND per := oder = überschreiben
+    if [[ -f debian/rules ]]; then
+      sed -E -i 's/^([[:space:]]*(export[[:space:]]+)?DEB_(C|CXX|LD)FLAGS_MAINT_APPEND[[:space:]]*):?=/\1+=/g' debian/rules || true
+    fi
+
+    # Paket-spezifische Upstream-/Debian-Rules-Quirks & Hardware-Pruning
     if [[ "$pkg" == "xz-utils" ]]; then
       sed -i 's/findstring nocheck/findstring nodoc/g' debian/rules || true
     elif [[ "$pkg" == "re2" ]]; then
       sed -i "s|export DEB_CXXFLAGS_MAINT_APPEND=.*|export DEB_CXXFLAGS_MAINT_APPEND=-pthread -Wall -std=c++14 ${ARCH_FLAGS} ${OPT_FLAGS}|" debian/rules || true
+    elif [[ "$pkg" == "glibc" ]]; then
+      # glibc nutzt in debian/rules eigenes HOST_CFLAGS statt dpkg-buildflags
+      sed -i "s|^HOST_CFLAGS =.*|HOST_CFLAGS = -pipe -O3 -mcpu=cortex-a76+crypto -mtune=cortex-a76 -mno-fix-cortex-a53-835769 -mno-fix-cortex-a53-843419 -mbranch-protection=none -mno-outline-atomics -ftree-vectorize -fdebug-prefix-map=\$(CURDIR)=. \$(call xx,extra_cflags)|" debian/rules || true
+    elif [[ "$pkg" == "mesa" ]]; then
+      echo "   🎨 Optimiere Mesa für Raspberry Pi 5 (V3D/VC4/Zink/LLVMpipe only – entferne AMD/Intel/Nvidia/Qualcomm/Mali Ballast)..."
+      sed -i 's/-Dbuild-tests=true/-Dbuild-tests=false/g' debian/rules || true
+      sed -i 's|^GALLIUM_DRIVERS :=.*|GALLIUM_DRIVERS := '\''softpipe'\'','\''llvmpipe'\'','\''virgl'\'','\''zink'\'','\''vc4'\'','\''v3d'\''|' debian/rules || true
+      sed -i 's|^VULKAN_DRIVERS :=.*|VULKAN_DRIVERS := '\''broadcom'\'','\''swrast'\'','\''virtio'\''|' debian/rules || true
+      sed -i 's/-Dgallium-rusticl=true/-Dgallium-rusticl=false/g' debian/rules || true
+      sed -i 's/-Dteflon=true/-Dteflon=false/g' debian/rules || true
+      sed -i 's|mv debian/tmp/usr/lib/\${DEB_HOST_MULTIARCH}/dri/\*_drv_video.so|mv -f debian/tmp/usr/lib/\${DEB_HOST_MULTIARCH}/dri/\*_drv_video.so|g' debian/rules || true
+      sed -i 's|debian/mesa-libgallium/usr/lib/\${DEB_HOST_MULTIARCH}/dri/|debian/mesa-libgallium/usr/lib/\${DEB_HOST_MULTIARCH}/dri/ 2>/dev/null \|\| true|g' debian/rules || true
+      sed -i 's|mv debian/tmp/usr/share/drirc.d/|mv -f debian/tmp/usr/share/drirc.d/|g' debian/rules || true
+      sed -i 's|debian/mesa-libgallium/usr/share/drirc.d/;|debian/mesa-libgallium/usr/share/drirc.d/ 2>/dev/null \|\| true;|g' debian/rules || true
+      sed -i 's|debian/mesa-vulkan-drivers/usr/share/drirc.d/;|debian/mesa-vulkan-drivers/usr/share/drirc.d/ 2>/dev/null \|\| true;|g' debian/rules || true
+      : > debian/mesa-opencl-icd.install 2>/dev/null || true
+      : > debian/mesa-teflon-delegate.install 2>/dev/null || true
     elif [[ "$pkg" == "linux" ]]; then
       echo "   🐧 Konfiguriere Raspberry Pi 5 Kernel (nur rpi-2712, 1000 Hz, Cortex-A76 -O3, ohne Fremd-Errata & PAC/BTI)..."
       # 1. Nur rpi-2712 Flavour auf arm64 bauen (v8 und v8-rt entfernen)
