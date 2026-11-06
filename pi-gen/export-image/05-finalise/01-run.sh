@@ -52,6 +52,8 @@ rm -f "${ROOTFS_DIR}/etc/subgid-"
 
 rm -f "${ROOTFS_DIR}"/var/cache/debconf/*-old
 rm -f "${ROOTFS_DIR}"/var/lib/dpkg/*-old
+rm -rf "${ROOTFS_DIR}"/var/lib/apt/lists/*
+rm -f "${ROOTFS_DIR}"/var/cache/apt/*.bin
 
 rm -f "${ROOTFS_DIR}"/usr/share/icons/*/icon-theme.cache
 

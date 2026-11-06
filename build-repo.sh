@@ -324,7 +324,7 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
     export DEB_BUILD_PROFILES="nocheck nodoc noudeb nobiarch"
   elif [[ "$pkg" == "linux" ]]; then
     USE_LTO=0
-    OPT_LEVEL="-O3 (1000Hz rpi-2712)"
+    OPT_LEVEL="-O3 (1000Hz rpi-2712 + rpi-v8)"
     export DEB_BUILD_OPTIONS="nocheck nodoc terse parallel=$(nproc)"
     export DEB_BUILD_PROFILES="nocheck nodoc pkg.linux.nokerneldbg pkg.linux.nokerneldbginfo pkg.linux.nosource pkg.linux.notools pkg.linux.norust"
   else
@@ -499,19 +499,20 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
       : > debian/mesa-opencl-icd.install 2>/dev/null || true
       : > debian/mesa-teflon-delegate.install 2>/dev/null || true
     elif [[ "$pkg" == "linux" ]]; then
-      echo "   🐧 Konfiguriere Raspberry Pi 5 Kernel (nur rpi-2712, 1000 Hz, Cortex-A76 -O3, ohne Fremd-Errata & PAC/BTI)..."
-      # 1. Nur rpi-2712 Flavour auf arm64 bauen (v8 und v8-rt entfernen)
+      echo "   🐧 Konfiguriere Raspberry Pi 5 Kernel (rpi-2712 [16K] & rpi-v8 [4K], 1000 Hz, Cortex-A76 -O3, ohne Fremd-Errata & PAC/BTI)..."
+      # 1. rpi-2712 (16K Standard) und rpi-v8 (4K für Box64/Wine/Emulatoren) bauen, nur v8-rt entfernen
       python3 - << 'PYEOF'
 p = "debian/config/arm64/defines.toml"
 with open(p) as f:
     txt = f.read()
-txt = txt.replace("[[featureset.flavour]]\nname = 'v8'\n", "")
 txt = txt.replace("[[featureset.flavour]]\nname = 'v8-rt'\n", "")
 with open(p, "w") as f:
     f.write(txt)
 PYEOF
-      # 2. 1000 Hz Timer, PAC/BTI aus und 29 fremde CPU-Errata in config.2712 deaktivieren (nur echte Cortex-A76 Errata behalten)
-      cat << 'KCEOF' >> debian/config/arm64/rpi/config.2712
+      # 2. 1000 Hz Timer, PAC/BTI aus und 29 fremde CPU-Errata in config.2712 UND config.v8 deaktivieren (nur echte Cortex-A76 Errata behalten)
+      for kcfg in debian/config/arm64/rpi/config.2712 debian/config/arm64/rpi/config.v8; do
+        [[ -f "$kcfg" ]] || continue
+        cat << 'KCEOF' >> "$kcfg"
 # KRubus Pi 5 / CM5 (BCM2712 Cortex-A76) Kernel Tuning
 # CONFIG_HZ_250 is not set
 CONFIG_HZ_1000=y
@@ -551,6 +552,7 @@ CONFIG_HZ=1000
 # CONFIG_ARM64_ERRATUM_4118414 is not set
 # CONFIG_ARM64_ERRATUM_858921 is not set
 KCEOF
+      done
       # 3. Cortex-A76 -O3 Compiler-Flags direkt in KCFLAGS von debian/rules.real injizieren
       sed -i "s|KCFLAGS=-fdebug-prefix-map=\$(CURDIR)/=|KCFLAGS=\"-fdebug-prefix-map=\$(CURDIR)/= ${ARCH_FLAGS} -O3 -Wno-error\"|" debian/rules.real || true
       # 4. Absichtlichen exit 1 bei regenerierter debian/control in debian/rules neutralisieren

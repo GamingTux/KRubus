@@ -280,10 +280,11 @@ fi
 
 # --- 6. Optional Hardware & System Tweaks ---
 TWEAK_CHOICES=$(whiptail --title "KRubus First-Boot Setup (6/6) - Optional System Tweaks" \
-    --checklist "Select optional hardware features and tweaks to enable:\n(Use UP/DOWN arrows to navigate, SPACE to toggle [X], ENTER to confirm)" 17 78 6 \
+    --checklist "Select optional hardware features and tweaks to enable:\n(Use UP/DOWN arrows to navigate, SPACE to toggle [X], ENTER to confirm)" 18 78 7 \
     "pcie_gen3"  "PCIe Gen 3.0 mode (~850 MB/s for fast NVMe SSDs)" "OFF" \
     "oc_2800"    "Overclock CPU to 2.8 GHz (Requires active cooling)" "OFF" \
     "usb_boost"  "Unlock 1.6A USB port current on non-PD 5V power" "OFF" \
+    "page_4k"    "4K page size kernel (Box64, Wine, Steam & x86 emulators)" "OFF" \
     "ssh_server" "Enable SSH server for remote terminal/SFTP access" "OFF" \
     "i2c_spi"    "Enable GPIO I2C & SPI buses (Sensors, Displays, HATs)" "ON" \
     "bt_auto"    "Enable Bluetooth automatically on system startup" "ON" \
@@ -306,6 +307,11 @@ if [ -f "$BOOTCONF" ]; then
     sed -i '/^usb_max_current_enable=/d' "$BOOTCONF"
     if [[ "$TWEAK_CHOICES" == *"usb_boost"* ]]; then
         echo "usb_max_current_enable=1" >> "$BOOTCONF"
+    fi
+
+    sed -i '/^kernel=/d' "$BOOTCONF"
+    if [[ "$TWEAK_CHOICES" == *"page_4k"* ]]; then
+        echo "kernel=kernel8.img" >> "$BOOTCONF"
     fi
 
     if [[ "$TWEAK_CHOICES" == *"i2c_spi"* ]]; then
@@ -347,6 +353,37 @@ else
 fi
 EOF
 chmod 755 "${ROOTFS_DIR}/usr/local/sbin/krubus-firstboot.sh"
+
+cat << 'EOF' > "${ROOTFS_DIR}/usr/local/sbin/krubus-kernel-mode"
+#!/bin/bash
+set -e
+BOOTCONF="/boot/firmware/config.txt"
+[ ! -f "$BOOTCONF" ] && BOOTCONF="/boot/config.txt"
+
+case "${1:-status}" in
+    4k|4K)
+        [ "$(id -u)" -eq 0 ] || { echo "Please run with sudo: sudo krubus-kernel-mode 4k"; exit 1; }
+        sed -i '/^kernel=/d' "$BOOTCONF"
+        echo "kernel=kernel8.img" >> "$BOOTCONF"
+        echo "✅ Switched to 4K page size kernel (kernel8.img - Box64/Wine/Emulators). Reboot to apply."
+        ;;
+    16k|16K)
+        [ "$(id -u)" -eq 0 ] || { echo "Please run with sudo: sudo krubus-kernel-mode 16k"; exit 1; }
+        sed -i '/^kernel=/d' "$BOOTCONF"
+        echo "✅ Switched to 16K page size kernel (kernel_2712.img - Default Pi 5 Performance). Reboot to apply."
+        ;;
+    status|*)
+        echo "Current running page size: $(getconf PAGESIZE) bytes ($(uname -r))"
+        if grep -q '^kernel=kernel8\.img' "$BOOTCONF" 2>/dev/null; then
+            echo "Configured boot kernel:    4K page size (kernel8.img)"
+        else
+            echo "Configured boot kernel:    16K page size (kernel_2712.img)"
+        fi
+        echo "Usage: sudo krubus-kernel-mode [16k|4k|status]"
+        ;;
+esac
+EOF
+chmod 755 "${ROOTFS_DIR}/usr/local/sbin/krubus-kernel-mode"
 
 cat << 'EOF' > "${ROOTFS_DIR}/etc/systemd/system/krubus-firstboot.service"
 [Unit]

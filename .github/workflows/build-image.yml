@@ -133,6 +133,7 @@ jobs:
             echo "### ✨ Key Release Highlights"
             echo "- **🖥️ Pure KDE Plasma 6 (Wayland):** SDDM Wayland (\`kwin_wayland\`), KScreen, PowerDevil DDC/CI brightness support, KDE Discover + Flathub pre-configured, Dolphin (\`kio-admin\`), Konsole, Kate, Gwenview, Okular, Ark, Spectacle, Skanpage, Partition Manager & KDE Connect."
             echo "- **🚀 Cortex-A76 Optimized \`+pi5\` Repository:** Pre-configured with \`https://gamingtux.github.io/KRubus\` (\`Pin-Priority: 1001\`) so all system, multimedia, Qt6, KF6, Plasma 6, and kernel updates arrive automatically via APT / KDE Discover."
+            echo "- **🐧 Dual Cortex-A76 1000 Hz Kernel (16K & 4K Page Size):** Ships with both \`kernel_2712.img\` (16K default for maximum desktop throughput) and \`kernel8.img\` (4K page size for Box64, Wine, Steam & x86 emulators — switchable via First-Boot Wizard or \`sudo krubus-kernel-mode 4k\`)."
             echo "- **🗄️ Flash-Friendly Btrfs Root Filesystem:** Transparent \`compress=zstd:1\`, \`noatime,nodiratime,ssd,discard=async,space_cache=v2\`, automatic first-boot partition expansion, and RAM-backed \`/tmp\`."
             echo "- **🧠 Dynamic ZRAM & Storage Tuning:** Up to 4 GB low-latency \`lzo-rle\` ZRAM swap (zero SD/NVMe swap wear), EarlyOOM freeze protection, NVMe (\`none\`), SD/eMMC (\`mq-deadline\`), 4-core RPS/RFS & GICv2 IRQ affinity."
             echo "- **🌐 Hardware-Accelerated Firefox:** Raspberry Pi BCM2712-accelerated Firefox with Wayland DMABUF zero-copy, V3D WebRender, Widevine DRM, and flash-safe RAM-only cache."
@@ -149,6 +150,7 @@ jobs:
             echo "\`\`\`"
           } > release_body.md
 
+          gh release delete "$TAG" --cleanup-tag -y 2>/dev/null || true
           gh release create "$TAG" \
             "$IMG_XZ" \
             SHA256SUMS.txt \
