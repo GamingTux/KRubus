@@ -8,13 +8,18 @@
 
 Alle Pakete in [`packages.txt`](./packages.txt) werden automatisiert über GitHub Actions nativ auf ARM64 gebaut und über GitHub Pages (`gh-pages`) ausgeliefert:
 
-- **Target & Mikroarchitektur (`ARCH_FLAGS`):**
-  `-mcpu=cortex-a76+crypto -mtune=cortex-a76 -mno-fix-cortex-a53-835769 -mno-fix-cortex-a53-843419 -mbranch-protection=none -mno-outline-atomics -mearly-ra=all`
-- **Code-Gen, Loop-Nest & Polyhedral-Optimizer (`OPT_FLAGS` – durchgehend für alle Stufen inkl. Qt6 & KDE Plasma 6):**
-  `-O3 -ftree-vectorize -fvect-cost-model=dynamic -fomit-frame-pointer -fno-semantic-interposition -fno-plt -fipa-pta -floop-interchange -floop-unroll-and-jam -fpeel-loops -funroll-loops -ftracer -fgraphite-identity -floop-nest-optimize -g0`
-- **Link-Time Optimization & Linker (`LTO_FLAGS` & `LINK_FLAGS`):**
-  `-flto=auto -ffat-lto-objects -fuse-linker-plugin -fdevirtualize-at-ltrans -Wl,-O3 -Wl,--as-needed -Wl,-Bsymbolic-functions`
-- **Python 3.13 PGO:** Voller Profile-Guided-Optimization-Trainingslauf aktiviert.
+- **Target, Cache-Geometrie & Mikroarchitektur (`ARCH_FLAGS`):**
+  `-mcpu=cortex-a76+crypto -mtune=cortex-a76 -mno-fix-cortex-a53-835769 -mno-fix-cortex-a53-843419 -mbranch-protection=none -mno-outline-atomics -mearly-ra=all --param l1-cache-size=64 --param l1-cache-line-size=64 --param l2-cache-size=512`
+- **Code-Gen, IEEE-Safe FP-SIMD, Loop-Nest & Polyhedral-Optimizer (`OPT_FLAGS` – durchgehend für alle 392 Quellpakete inkl. Qt6 & KDE Plasma 6):**
+  `-O3 -ftree-vectorize -fvect-cost-model=dynamic -fomit-frame-pointer -fno-semantic-interposition -fno-math-errno -fno-trapping-math -ffp-contract=fast -fprefetch-loop-arrays -floop-interchange -floop-unroll-and-jam -fpeel-loops -funroll-loops -ftracer -fgraphite-identity -floop-nest-optimize -g0`
+- **Link-Time Optimization & 16K-Page-Linker (`LTO_FLAGS` & `LINK_FLAGS`):**
+  `-flto=auto -ffat-lto-objects -fuse-linker-plugin -fdevirtualize-at-ltrans -Wl,-O3 -Wl,--as-needed -Wl,--hash-style=gnu -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384`
+- **Hardware-Spezifische Paket-Optimierungen:**
+  - **`linux` (`rpi-2712` Custom Kernel):** 16K Pages, `1000 Hz` Timer (`CONFIG_HZ_1000=y`), alle 29 fremden CPU-Errata & PAC/BTI entfernt, kompiliert mit `-mcpu=cortex-a76+crypto -O3`.
+  - **`mesa` (V3D/VC4-Only):** Alle fremden GPU-Treiber (AMD, Nvidia, Intel, Qualcomm, Mali) entfernt – ~60 % schlankere `libgallium` & Vulkan-Treiber.
+  - **`glibc` (`libc6`):** Direkt mit Cortex-A76 LSE-Atomics, RCPC, NEON/FP16 und 64KB/512KB Cache-Parametern gebaut.
+  - **`python3.13`:** Voller Profile-Guided-Optimization (PGO) Trainingslauf aktiviert.
+  - **Paket-Kompression:** Alle `.deb`-Pakete werden automatisch mit `dpkg-deb -Zxz -z9 -Sextreme` (`xz -9e`) maximal komprimiert.
 
 ### 🌐 Web-Katalog & APT-Einbindung
 

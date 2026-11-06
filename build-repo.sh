@@ -289,7 +289,16 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
       export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS -O3 -ftree-vectorize -fomit-frame-pointer -funroll-loops -g0"
       export DEB_LDFLAGS_MAINT_APPEND="$LINK_FLAGS"
       ;;
-    xz-utils|tar|re2|gmp|libxcrypt|nettle|gnutls28|openssl|highway|icu|glib2.0|xorg-server|mesa|xwayland|librsvg|poppler|aom|svt-av1|jpeg-xl|libplacebo|alsa-lib|pulseaudio|pipewire|wireplumber|gstreamer1.0|gst-plugins-base1.0|gst-plugins-good1.0|gst-plugins-bad1.0|gst-plugins-ugly1.0|gst-libav1.0|ffmpeg|mpv|vlc|gtk+3.0|gtk4|python3.13|btop|libcamera|rpicam-apps|vulkan-loader|glslang|spirv-tools|shaderc|qt6-*|kf6-*|kwin|plasma-*|libplasma|breeze*|dolphin|konsole|kate|gwenview|okular|ark|kde-*)
+    glibc|linux)
+      USE_LTO=0
+      # glibc (HOST_CFLAGS) und linux (KCFLAGS) erhalten ihre Cortex-A76-Flags direkt über debian/rules(.real), damit Host-Tools (rtld/fixdep/objtool) sauber bauen
+      export DEB_CFLAGS_MAINT_STRIP=""
+      export DEB_CXXFLAGS_MAINT_STRIP=""
+      export DEB_CFLAGS_MAINT_APPEND=""
+      export DEB_CXXFLAGS_MAINT_APPEND=""
+      export DEB_LDFLAGS_MAINT_APPEND=""
+      ;;
+    xz-utils|tar|re2|gmp|libxcrypt|nettle|gnutls28|openssl|gnupg2|openssh|highway|icu|glib2.0|systemd|util-linux|coreutils|bash|dpkg|apt|e2fsprogs|udisks2|libblockdev|xorg-server|mesa|xwayland|librsvg|poppler|djvulibre|aom|svt-av1|jpeg-xl|libplacebo|alsa-lib|pulseaudio|pipewire|wireplumber|gstreamer1.0|gst-plugins-base1.0|gst-plugins-good1.0|gst-plugins-bad1.0|gst-plugins-ugly1.0|gst-libav1.0|ffmpeg|mpv|vlc|gtk+3.0|gtk4|python3.13|btop|libcamera|rpicam-apps|vulkan-loader|glslang|spirv-tools|shaderc|qt6-*|kf6-*|kwin|plasma-*|libplasma|breeze*|dolphin|konsole|kate|gwenview|okular|ark|kde-*|haruna|elisa-player|kolourpaint|partitionmanager)
       # Aus LMPE bekannte Pakete mit Inline-ASM, Rust oder Linker-Version-Scripts direkt ohne LTO-Umweg mit vollem -O3+Graphite bauen
       USE_LTO=0
       OPT_LEVEL="-O3"
@@ -473,8 +482,8 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
     elif [[ "$pkg" == "re2" ]]; then
       sed -i "s|export DEB_CXXFLAGS_MAINT_APPEND=.*|export DEB_CXXFLAGS_MAINT_APPEND=-pthread -Wall -std=c++14 ${ARCH_FLAGS} ${OPT_FLAGS}|" debian/rules || true
     elif [[ "$pkg" == "glibc" ]]; then
-      # glibc nutzt in debian/rules eigenes HOST_CFLAGS statt dpkg-buildflags
-      sed -i "s|^HOST_CFLAGS =.*|HOST_CFLAGS = -pipe -O3 -mcpu=cortex-a76+crypto -mtune=cortex-a76 -mno-fix-cortex-a53-835769 -mno-fix-cortex-a53-843419 -mbranch-protection=none -mno-outline-atomics -ftree-vectorize -fdebug-prefix-map=\$(CURDIR)=. \$(call xx,extra_cflags)|" debian/rules || true
+      # glibc nutzt in debian/rules eigenes HOST_CFLAGS statt dpkg-buildflags (ohne -O3 in rtld dl-reloc, aber mit vollem Cortex-A76 + Vectorize + 64KB/512KB Cache-Tuning)
+      sed -i "s|^HOST_CFLAGS =.*|HOST_CFLAGS = -pipe -O2 ${ARCH_FLAGS} -ftree-vectorize -fomit-frame-pointer -fno-math-errno -fdebug-prefix-map=\$(CURDIR)=. \$(call xx,extra_cflags)|" debian/rules || true
     elif [[ "$pkg" == "mesa" ]]; then
       echo "   🎨 Optimiere Mesa für Raspberry Pi 5 (V3D/VC4/Zink/LLVMpipe only – entferne AMD/Intel/Nvidia/Qualcomm/Mali Ballast)..."
       sed -i 's/-Dbuild-tests=true/-Dbuild-tests=false/g' debian/rules || true
@@ -613,7 +622,9 @@ KCEOF
           ../*-examples_*.deb \
           ../*-tests_*.deb \
           ../*-source_*.deb \
-          ../*-mingw-*.deb
+          ../*-mingw-*.deb \
+          ../locales-all_*.deb \
+          ../nscd_*.deb
     if compgen -G "../*.deb" > /dev/null; then
       mv -f ../*.deb "$REPO_DIR/pool/main/"
       update_local_apt_repo
