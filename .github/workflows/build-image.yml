@@ -1,0 +1,163 @@
+name: Build Raspberry Pi 5 KRubus Btrfs Image (pi-gen)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release Tag (leer lassen für automatisches Datum vYYYY.MM.DD-HHMM)'
+        required: false
+        default: ''
+  schedule:
+    # Automatisch jeden 1. des Monats um 06:00 UTC ein frisches Image bauen
+    - cron: '0 6 1 * *'
+
+permissions:
+  contents: write
+
+jobs:
+  build-image:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 240
+    container:
+      image: debian:trixie
+      options: --privileged -v /dev:/dev -v /lib/modules:/lib/modules:ro
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Install pi-gen & Btrfs build dependencies
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            quilt \
+            parted \
+            coreutils \
+            qemu-user-binfmt \
+            debootstrap \
+            zerofree \
+            zip \
+            dosfstools \
+            e2fsprogs \
+            btrfs-progs \
+            libcap2-bin \
+            grep \
+            rsync \
+            xz-utils \
+            curl \
+            ca-certificates \
+            xxd \
+            file \
+            git \
+            kmod \
+            bc \
+            gpg \
+            pigz \
+            arch-test \
+            fdisk \
+            mount \
+            util-linux \
+            debian-archive-keyring \
+            gh
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare loop devices & Btrfs kernel support
+        run: |
+          git config --global --add safe.directory '*'
+          modprobe loop || true
+          modprobe btrfs || true
+          for i in $(seq 0 15); do
+            mknod -m 660 "/dev/loop${i}" b 7 "${i}" 2>/dev/null || true
+          done
+
+      - name: Run pi-gen image build (Maximum XZ -9e Compression)
+        run: |
+          cd "${GITHUB_WORKSPACE}/pi-gen"
+          chmod +x build.sh build-docker.sh
+          find stage* export-image -name "*.sh" -exec chmod +x {} +
+
+          ./build.sh &
+          PIGEN_PID=$!
+
+          (
+            ELAPSED=0
+            while kill -0 "$PIGEN_PID" 2>/dev/null; do
+              sleep 60
+              if kill -0 "$PIGEN_PID" 2>/dev/null; then
+                ELAPSED=$((ELAPSED + 60))
+                LAST_STEP="$(tail -n 1 work/*/build.log 2>/dev/null || echo 'läuft...')"
+                echo "⏱️ [pi-gen] KRubus Image-Build läuft (${ELAPSED}s) | Letzter Status: ${LAST_STEP}"
+              fi
+            done
+          ) &
+          HB_PID=$!
+
+          if wait "$PIGEN_PID"; then
+            RC=0
+          else
+            RC=$?
+          fi
+          kill "$HB_PID" 2>/dev/null || true
+          wait "$HB_PID" 2>/dev/null || true
+
+          if [[ "$RC" -ne 0 ]]; then
+            echo "❌ pi-gen Fehler! Letzte 120 Zeilen aus build.log:"
+            tail -n 120 work/*/build.log || true
+            exit "$RC"
+          fi
+
+          ls -lh deploy/
+          cd deploy/
+          sha256sum *.img.xz > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish Image to GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd "${GITHUB_WORKSPACE}/pi-gen/deploy"
+          TAG="${{ inputs.release_tag }}"
+          if [[ -z "$TAG" ]]; then
+            TAG="v$(date -u +%Y.%m.%d-%H%M)"
+          fi
+
+          IMG_XZ="$(ls -1 *.img.xz | head -n 1)"
+          {
+            echo "## 🍓 KRubus ARM64 (Debian 13 Trixie / KDE Plasma 6 Wayland) for Raspberry Pi 5 & CM5"
+            echo ""
+            echo "Ready-to-flash **Btrfs** desktop image for **Raspberry Pi 5** and **Compute Module 5**, powered by the **KRubus \`+pi5\` APT repository** (\`-mcpu=cortex-a76+crypto -O3\`, Graphite loop-nest optimization, LTO, 16K ELF page alignment, and a custom 1000 Hz \`rpi-2712\` kernel)."
+            echo ""
+            echo "### ✨ Key Release Highlights"
+            echo "- **🖥️ Pure KDE Plasma 6 (Wayland):** SDDM Wayland (\`kwin_wayland\`), KScreen, PowerDevil DDC/CI brightness support, KDE Discover + Flathub pre-configured, Dolphin (\`kio-admin\`), Konsole, Kate, Gwenview, Okular, Ark, Spectacle, Skanpage, Partition Manager & KDE Connect."
+            echo "- **🚀 Cortex-A76 Optimized \`+pi5\` Repository:** Pre-configured with \`https://gamingtux.github.io/KRubus\` (\`Pin-Priority: 1001\`) so all system, multimedia, Qt6, KF6, Plasma 6, and kernel updates arrive automatically via APT / KDE Discover."
+            echo "- **🗄️ Flash-Friendly Btrfs Root Filesystem:** Transparent \`compress=zstd:1\`, \`noatime,nodiratime,ssd,discard=async,space_cache=v2\`, automatic first-boot partition expansion, and RAM-backed \`/tmp\`."
+            echo "- **🧠 Dynamic ZRAM & Storage Tuning:** Up to 4 GB low-latency \`lzo-rle\` ZRAM swap (zero SD/NVMe swap wear), EarlyOOM freeze protection, NVMe (\`none\`), SD/eMMC (\`mq-deadline\`), 4-core RPS/RFS & GICv2 IRQ affinity."
+            echo "- **🌐 Hardware-Accelerated Firefox:** Raspberry Pi BCM2712-accelerated Firefox with Wayland DMABUF zero-copy, V3D WebRender, Widevine DRM, and flash-safe RAM-only cache."
+            echo "- **🧙 Interactive TTY1 First-Boot Wizard:** Configure keyboard layout, language/timezone, hostname, Wi-Fi, custom username/password, SDDM autologin, and optional hardware tweaks (PCIe Gen 3, 2.8 GHz OC, USB 1.6A boost, SSH, I2C/SPI, Bluetooth) on initial boot."
+            echo ""
+            echo "### 📥 Flashing Instructions"
+            echo "1. Download \`${IMG_XZ}\`."
+            echo "2. Flash directly to an NVMe SSD, MicroSD card, or eMMC using **[Raspberry Pi Imager](https://www.raspberrypi.com/software/)** (*Use Custom*) or **[Balena Etcher](https://etcher.balena.io/)**."
+            echo "3. Boot your Raspberry Pi 5 / CM5 — the Btrfs root partition expands automatically and launches the First-Boot Setup Wizard."
+            echo ""
+            echo "### 🔐 SHA256 Checksum"
+            echo "\`\`\`text"
+            cat SHA256SUMS.txt
+            echo "\`\`\`"
+          } > release_body.md
+
+          gh release create "$TAG" \
+            "$IMG_XZ" \
+            SHA256SUMS.txt \
+            *.info \
+            --title "KRubus KDE Plasma 6 - Pi 5 & CM5 ARM64 Btrfs Image ($TAG)" \
+            --notes-file release_body.md
+
+          # Automatisch nur die 3 neuesten Image-Releases behalten
+          gh release list --limit 50 --json tagName --jq '.[3:][].tagName' | while read -r old_tag; do
+            [[ -n "$old_tag" ]] || continue
+            echo "🧹 Lösche altes Image-Release und Git-Tag: $old_tag"
+            gh release delete "$old_tag" --cleanup-tag -y || true
+          done

@@ -1,0 +1,32 @@
+# For more options and information see
+# http://rptl.io/configtxt
+
+# --- Base Hardware & Interfaces ---
+dtparam=i2c_arm=on
+#dtparam=spi=on
+dtparam=uart0=on
+dtparam=audio=on
+arm_64bit=1
+arm_boost=1
+
+# --- Display, Graphics (V3D KMS) & Boot ---
+dtoverlay=vc4-kms-v3d
+max_framebuffers=2
+disable_fw_kms_setup=1
+disable_overscan=1
+disable_splash=1
+camera_auto_detect=1
+display_auto_detect=1
+auto_initramfs=1
+
+[cm4]
+otg_mode=1
+
+# --- Compute Module 5 (CM5) Carrier Integration ---
+[cm5]
+dtoverlay=dwc2,dr_mode=host
+
+[pi5]
+dtoverlay=nospi10
+
+[all]

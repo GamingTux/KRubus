@@ -2,6 +2,12 @@ name: Build KRubus (Trixie KDE) ARM64 Pi5 Repo
 
 on:
   workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: 'Kompletten Neuaufbau aller Pakete erzwingen (ignoriert bisherigen gh-pages Stand)'
+        required: false
+        type: boolean
+        default: false
   schedule:
     - cron: '0 3 * * 2'
 
@@ -89,7 +95,10 @@ jobs:
 
       - name: Fetch existing gh-pages repository for delta builds
         run: |
-          if git clone --depth 1 --branch gh-pages "https://github.com/${GITHUB_REPOSITORY}.git" ./repo; then
+          if [[ "${{ inputs.force_rebuild }}" == "true" ]]; then
+            echo "🔄 Force-Rebuild aktiv: Starte sauberen Neuaufbau ohne bisherigen Paket-Pool..."
+            mkdir -p ./repo
+          elif git clone --depth 1 --branch gh-pages "https://github.com/${GITHUB_REPOSITORY}.git" ./repo; then
             rm -rf ./repo/.git
           else
             mkdir -p ./repo
