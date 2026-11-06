@@ -58,6 +58,7 @@ jobs:
             mount \
             util-linux \
             debian-archive-keyring \
+            python3 \
             gh
 
       - name: Checkout repository

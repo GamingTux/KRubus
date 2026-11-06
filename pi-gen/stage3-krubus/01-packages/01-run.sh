@@ -261,7 +261,6 @@ chmod 755 "${ROOTFS_DIR}/usr/local/sbin/krubus-kde-polish"
 cat << 'EOF' > "${ROOTFS_DIR}/etc/apt/apt.conf.d/99-krubus-kde-polish"
 DPkg::Post-Invoke { "if [ -x /usr/local/sbin/krubus-kde-polish ]; then /usr/local/sbin/krubus-kde-polish || true; fi"; };
 EOF
-python3 "${ROOTFS_DIR}/usr/local/sbin/krubus-kde-polish" "${ROOTFS_DIR}"
 
 # 4. CPU Governor, Kernel VM, Btrfs Cache, Storage I/O Schedulers, IRQ Affinity & TCP BBR
 install -d -m 755 "${ROOTFS_DIR}/etc/udev/rules.d" "${ROOTFS_DIR}/etc/modules-load.d" "${ROOTFS_DIR}/etc/sysctl.d"
@@ -492,6 +491,7 @@ fi
 # 10. Chroot Finalization: ZRAM, Locales, Flathub, Plymouth, Timeouts & Fast-Boot Presets
 on_chroot <<- \EOF
 	export DEBIAN_FRONTEND=noninteractive
+	/usr/local/sbin/krubus-kde-polish || true
 	update-alternatives --set x-www-browser /usr/bin/firefox || true
 	update-alternatives --set gnome-www-browser /usr/bin/firefox || true
 	plymouth-set-default-theme spinner || true
