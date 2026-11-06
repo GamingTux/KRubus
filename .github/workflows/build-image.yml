@@ -150,17 +150,53 @@ jobs:
             echo "\`\`\`"
           } > release_body.md
 
-          gh release delete "$TAG" --cleanup-tag -y 2>/dev/null || true
-          gh release create "$TAG" \
-            "$IMG_XZ" \
-            SHA256SUMS.txt \
-            *.info \
-            --title "KRubus KDE Plasma 6 - Pi 5 & CM5 ARM64 Btrfs Image ($TAG)" \
-            --notes-file release_body.md
+          git config --global --add safe.directory '*'
+          gh release delete "$TAG" -R "${GITHUB_REPOSITORY}" --cleanup-tag -y 2>/dev/null || true
+
+          # 1. Draft-Release anlegen (mit 5x Retry gegen transiente GitHub HTTP 500/502/503 Fehler)
+          CREATED=0
+          for attempt in 1 2 3 4 5; do
+            if gh release create "$TAG" \
+              -R "${GITHUB_REPOSITORY}" \
+              --target "${GITHUB_SHA}" \
+              --draft \
+              --title "KRubus KDE Plasma 6 - Pi 5 & CM5 ARM64 Btrfs Image ($TAG)" \
+              --notes-file release_body.md; then
+              CREATED=1
+              break
+            fi
+            echo "⚠️ GitHub API Fehler beim Anlegen des Releases (Versuch ${attempt}/5) – warte $((attempt * 10))s..."
+            sleep $((attempt * 10))
+          done
+          [[ "$CREATED" -eq 1 ]] || { echo "❌ Konnte Release nach 5 Versuchen nicht anlegen."; exit 1; }
+
+          # 2. Dateien einzeln mit --clobber und 5x Retry hochladen
+          for asset in "$IMG_XZ" SHA256SUMS.txt *.info; do
+            [[ -f "$asset" ]] || continue
+            UPLOADED=0
+            for attempt in 1 2 3 4 5; do
+              echo "⬆️ Lade ${asset} hoch (Versuch ${attempt}/5)..."
+              if gh release upload "$TAG" "$asset" -R "${GITHUB_REPOSITORY}" --clobber; then
+                UPLOADED=1
+                break
+              fi
+              echo "⚠️ Upload-Fehler bei ${asset} (Versuch ${attempt}/5) – warte $((attempt * 15))s..."
+              sleep $((attempt * 15))
+            done
+            [[ "$UPLOADED" -eq 1 ]] || { echo "❌ Konnte ${asset} nach 5 Versuchen nicht hochladen."; exit 1; }
+          done
+
+          # 3. Vollständiges Release veröffentlichen
+          for attempt in 1 2 3 4 5; do
+            if gh release edit "$TAG" -R "${GITHUB_REPOSITORY}" --draft=false --latest; then
+              break
+            fi
+            sleep 10
+          done
 
           # Automatisch nur die 3 neuesten Image-Releases behalten
-          gh release list --limit 50 --json tagName --jq '.[3:][].tagName' | while read -r old_tag; do
+          gh release list -R "${GITHUB_REPOSITORY}" --limit 50 --json tagName --jq '.[3:][].tagName' | while read -r old_tag; do
             [[ -n "$old_tag" ]] || continue
             echo "🧹 Lösche altes Image-Release und Git-Tag: $old_tag"
-            gh release delete "$old_tag" --cleanup-tag -y || true
+            gh release delete "$old_tag" -R "${GITHUB_REPOSITORY}" --cleanup-tag -y || true
           done
