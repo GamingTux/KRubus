@@ -4,6 +4,17 @@ set -e
 chmod 755 /usr/sbin/krubus-runtime-tune 2>/dev/null || true
 
 if ! ischroot 2>/dev/null; then
+    # Adopt package conffiles if dpkg created .dpkg-dist due to pre-existing image files
+    for cfg in \
+        /etc/sysctl.d/99-krubus-pi5.conf \
+        /etc/systemd/zram-generator.conf \
+        /etc/systemd/journald.conf.d/99-persistent.conf \
+        /etc/pipewire/pipewire.conf.d/99-krubus.conf; do
+        if [ -f "${cfg}.dpkg-dist" ]; then
+            mv -f "${cfg}.dpkg-dist" "$cfg"
+        fi
+    done
+
     # 1. Apply kernel sysctl tweaks immediately
     sysctl --system >/dev/null 2>&1 || true
 
