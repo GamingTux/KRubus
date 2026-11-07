@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=KRubus
+Description=Responsive KRubus Boot Splash for Raspberry Pi 5
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/krubus
+ScriptFile=/usr/share/plymouth/themes/krubus/krubus.script

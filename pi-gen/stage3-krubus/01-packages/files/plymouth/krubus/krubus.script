@@ -1,0 +1,228 @@
+# KRubus Responsive Plymouth Boot Splash
+# Exact background match (#0c1117 -> RGB 12, 17, 23)
+Window.SetBackgroundTopColor(0.04706, 0.06667, 0.09020);
+Window.SetBackgroundBottomColor(0.04706, 0.06667, 0.09020);
+
+global.logo.raw = Image("logo.png");
+global.track.raw = Image("track.png");
+global.pill.raw = Image("pill.png");
+
+global.logo.aspect = global.logo.raw.GetWidth() / global.logo.raw.GetHeight();
+
+global.logo.sprite = Sprite();
+global.track.sprite = Sprite();
+global.pill.sprite = Sprite();
+
+global.layout.sw = 0;
+global.layout.sh = 0;
+global.layout.wx = 0;
+global.layout.wy = 0;
+global.layout.track_x = 0;
+global.layout.bar_y = 0;
+global.layout.travel = 0;
+global.layout.logo_bottom = 0;
+
+global.anim.phase = 0.0;
+global.status = "normal";
+global.quitting = 0;
+
+fun update_layout()
+  {
+    sw = Window.GetWidth();
+    sh = Window.GetHeight();
+    wx = Window.GetX();
+    wy = Window.GetY();
+
+    if (sw > 0 && sh > 0)
+      {
+        global.layout.sw = sw;
+        global.layout.sh = sh;
+        global.layout.wx = wx;
+        global.layout.wy = wy;
+
+        if (sw < sh)
+          max_w = sw * 0.70;
+        else
+          max_w = sw * 0.46;
+
+        max_h = sh * 0.22;
+        target_w = Math.Int(Math.Min(max_w, max_h * global.logo.aspect));
+        if (target_w < 160)
+          target_w = 160;
+        target_h = Math.Int(target_w / global.logo.aspect);
+        if (target_h < 34)
+          target_h = 34;
+
+        global.logo.scaled = global.logo.raw.Scale(target_w, target_h);
+        global.logo.sprite.SetImage(global.logo.scaled);
+
+        logo_x = Math.Int(wx + (sw - target_w) / 2);
+        logo_y = Math.Int(wy + (sh - target_h) / 2 - sh * 0.03);
+        global.logo.sprite.SetPosition(logo_x, logo_y, 10);
+        global.layout.logo_bottom = logo_y + target_h;
+
+        track_w = Math.Int(target_w * 0.42);
+        if (track_w < 96)
+          track_w = 96;
+        bar_h = Math.Int(target_h * 0.042);
+        if (bar_h < 4)
+          bar_h = 4;
+        if (bar_h > 12)
+          bar_h = 12;
+
+        pill_w = Math.Int(track_w * 0.32);
+        if (pill_w < 28)
+          pill_w = 28;
+
+        global.track.scaled = global.track.raw.Scale(track_w, bar_h);
+        global.pill.scaled = global.pill.raw.Scale(pill_w, bar_h);
+
+        global.track.sprite.SetImage(global.track.scaled);
+        global.pill.sprite.SetImage(global.pill.scaled);
+
+        gap_y = Math.Int(Math.Max(18, target_h * 0.34));
+        global.layout.bar_y = logo_y + target_h + gap_y;
+        global.layout.track_x = Math.Int(wx + (sw - track_w) / 2);
+        global.layout.travel = track_w - pill_w;
+
+        global.track.sprite.SetPosition(global.layout.track_x, global.layout.bar_y, 10);
+        global.pill.sprite.SetPosition(global.layout.track_x, global.layout.bar_y, 11);
+      }
+  }
+
+update_layout();
+
+fun refresh_callback()
+  {
+    if (Window.GetWidth() != global.layout.sw || Window.GetHeight() != global.layout.sh || Window.GetX() != global.layout.wx || Window.GetY() != global.layout.wy)
+      update_layout();
+
+    if (global.quitting == 0 && global.status == "normal")
+      {
+        # Smooth 0.65 Hz cosine glide inside the rounded track
+        global.anim.phase += 0.08168;
+        pos = (1.0 - Math.Cos(global.anim.phase)) / 2.0;
+        px = Math.Int(global.layout.track_x + global.layout.travel * pos);
+        global.pill.sprite.SetX(px);
+        global.track.sprite.SetOpacity(1);
+        global.pill.sprite.SetOpacity(1);
+      }
+  }
+
+Plymouth.SetRefreshFunction(refresh_callback);
+
+# ----------------------------------------- Password Dialog (LUKS) -----------------------------------------
+
+fun dialog_setup()
+  {
+    local.box;
+    local.lock;
+    local.entry;
+
+    box.image = Image("box.png");
+    lock.image = Image("lock.png");
+    entry.image = Image("entry.png");
+
+    box.sprite = Sprite(box.image);
+    box.x = Math.Int(global.layout.wx + (global.layout.sw - box.image.GetWidth()) / 2);
+    box.y = Math.Int(Math.Max(global.layout.logo_bottom + 24, global.layout.wy + global.layout.sh * 0.68));
+    box.z = 10000;
+    box.sprite.SetPosition(box.x, box.y, box.z);
+
+    lock.sprite = Sprite(lock.image);
+    lock.x = Math.Int(box.x + (box.image.GetWidth() - (lock.image.GetWidth() + 12 + entry.image.GetWidth())) / 2);
+    lock.y = Math.Int(box.y + (box.image.GetHeight() - lock.image.GetHeight()) / 2);
+    lock.z = box.z + 1;
+    lock.sprite.SetPosition(lock.x, lock.y, lock.z);
+
+    entry.sprite = Sprite(entry.image);
+    entry.x = lock.x + lock.image.GetWidth() + 12;
+    entry.y = Math.Int(box.y + (box.image.GetHeight() - entry.image.GetHeight()) / 2);
+    entry.z = box.z + 1;
+    entry.sprite.SetPosition(entry.x, entry.y, entry.z);
+
+    global.dialog.box = box;
+    global.dialog.lock = lock;
+    global.dialog.entry = entry;
+    global.dialog.bullet_image = Image("bullet.png");
+  }
+
+fun dialog_opacity(opacity)
+  {
+    global.dialog.box.sprite.SetOpacity(opacity);
+    global.dialog.lock.sprite.SetOpacity(opacity);
+    global.dialog.entry.sprite.SetOpacity(opacity);
+    for (index = 0; global.dialog.bullet[index]; index++)
+      {
+        global.dialog.bullet[index].sprite.SetOpacity(opacity);
+      }
+  }
+
+fun display_normal_callback()
+  {
+    global.status = "normal";
+    if (global.dialog)
+      dialog_opacity(0);
+  }
+
+fun display_password_callback(prompt, bullets)
+  {
+    global.status = "password";
+    global.track.sprite.SetOpacity(0);
+    global.pill.sprite.SetOpacity(0);
+    if (!global.dialog)
+      dialog_setup();
+    dialog_opacity(1);
+    max_bullets = Math.Int((global.dialog.entry.image.GetWidth() - 20) / (global.dialog.bullet_image.GetWidth() + 4));
+    for (index = 0; global.dialog.bullet[index] || index < bullets; index++)
+      {
+        if (!global.dialog.bullet[index])
+          {
+            global.dialog.bullet[index].sprite = Sprite(global.dialog.bullet_image);
+            bx = global.dialog.entry.x + 10 + index * (global.dialog.bullet_image.GetWidth() + 4);
+            by = Math.Int(global.dialog.entry.y + (global.dialog.entry.image.GetHeight() - global.dialog.bullet_image.GetHeight()) / 2);
+            global.dialog.bullet[index].sprite.SetPosition(bx, by, global.dialog.entry.z + 1);
+          }
+        if (index < bullets && index < max_bullets)
+          global.dialog.bullet[index].sprite.SetOpacity(1);
+        else
+          global.dialog.bullet[index].sprite.SetOpacity(0);
+      }
+  }
+
+Plymouth.SetDisplayNormalFunction(display_normal_callback);
+Plymouth.SetDisplayPasswordFunction(display_password_callback);
+
+# ----------------------------------------- Flicker-Free Handover (--retain-splash) -----------------------------------------
+
+fun quit_callback()
+  {
+    global.quitting = 1;
+    global.logo.sprite.SetOpacity(1);
+    global.track.sprite.SetOpacity(0);
+    global.pill.sprite.SetOpacity(0);
+  }
+
+Plymouth.SetQuitFunction(quit_callback);
+
+# ----------------------------------------- Status Messages -----------------------------------------
+
+global.message_sprite = Sprite();
+
+fun display_message_callback(text)
+  {
+    msg_img = Image.Text(text, 0.82, 0.86, 0.92);
+    mx = Math.Int(global.layout.wx + (global.layout.sw - msg_img.GetWidth()) / 2);
+    my = Math.Int(global.layout.wy + global.layout.sh - msg_img.GetHeight() - 32);
+    global.message_sprite.SetImage(msg_img);
+    global.message_sprite.SetPosition(mx, my, 10000);
+    global.message_sprite.SetOpacity(1);
+  }
+
+fun hide_message_callback(text)
+  {
+    global.message_sprite.SetOpacity(0);
+  }
+
+Plymouth.SetDisplayMessageFunction(display_message_callback);
+Plymouth.SetHideMessageFunction(hide_message_callback);

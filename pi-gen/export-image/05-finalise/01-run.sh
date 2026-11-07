@@ -6,8 +6,15 @@ SBOM_FILE="${STAGE_WORK_DIR}/${IMG_FILENAME}${IMG_SUFFIX}.sbom"
 BMAP_FILE="${STAGE_WORK_DIR}/${IMG_FILENAME}${IMG_SUFFIX}.bmap"
 RELEASE_NOTES_FILE="${STAGE_WORK_DIR}/release_notes.txt"
 
+if [ -f "${ROOTFS_DIR}/etc/initramfs-tools/update-initramfs.conf" ]; then
+	sed -i 's/^update_initramfs=.*/update_initramfs=yes/' "${ROOTFS_DIR}/etc/initramfs-tools/update-initramfs.conf"
+	sed -i 's/^MODULES=.*/MODULES=most/' "${ROOTFS_DIR}/etc/initramfs-tools/initramfs.conf"
+	sed -i 's/^COMPRESS=.*/COMPRESS=zstd/' "${ROOTFS_DIR}/etc/initramfs-tools/initramfs.conf"
+fi
+
 on_chroot <<- EOF
 	update-initramfs -k all -c
+	/sbin/ldconfig -X
 	if hash hardlink 2>/dev/null; then
 		hardlink -t /usr/share/doc
 	fi
@@ -20,11 +27,6 @@ on_chroot <<- EOF
 EOF
 
 ln -sf ../run/systemd/resolve/stub-resolv.conf "${ROOTFS_DIR}/etc/resolv.conf"
-
-if [ -f "${ROOTFS_DIR}/etc/initramfs-tools/update-initramfs.conf" ]; then
-	sed -i 's/^update_initramfs=.*/update_initramfs=yes/' "${ROOTFS_DIR}/etc/initramfs-tools/update-initramfs.conf"
-	sed -i 's/^MODULES=.*/MODULES=most/' "${ROOTFS_DIR}/etc/initramfs-tools/initramfs.conf"
-fi
 
 if [ -d "${ROOTFS_DIR}/home/${FIRST_USER_NAME}/.config" ]; then
 	chmod 700 "${ROOTFS_DIR}/home/${FIRST_USER_NAME}/.config"
@@ -103,6 +105,11 @@ if hash syft 2>/dev/null; then
 		--source-version="${IMG_DATE}" \
 		-o spdx-json="${SBOM_FILE}"
 fi
+
+# Stamp /etc/.updated & /var/.updated with exact /usr mtime_ns so First-Boot skips redundant 47s ldconfig rebuild
+USR_MTIME_NS="$(python3 -c 'import os, sys; print(os.stat(sys.argv[1]).st_mtime_ns)' "${ROOTFS_DIR}/usr")"
+printf '# Created during KRubus image finalisation\nTIMESTAMP_NSEC=%s\n' "${USR_MTIME_NS}" > "${ROOTFS_DIR}/etc/.updated"
+printf '# Created during KRubus image finalisation\nTIMESTAMP_NSEC=%s\n' "${USR_MTIME_NS}" > "${ROOTFS_DIR}/var/.updated"
 
 # Prefer fstrim (holes -> sparse bmap); fall back to zerofree if discard is unsupported.
 if fstrim -v "${ROOTFS_DIR}"; then

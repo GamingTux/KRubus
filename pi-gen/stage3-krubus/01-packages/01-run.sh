@@ -34,6 +34,10 @@ StandardOutput=journal
 StandardError=journal
 EOF
 
+# Install responsive KRubus Plymouth Boot Splash theme
+install -d -m 755 "${ROOTFS_DIR}/usr/share/plymouth/themes/krubus"
+install -m 644 files/plymouth/krubus/* "${ROOTFS_DIR}/usr/share/plymouth/themes/krubus/"
+
 # 2. Xwayland / X11 Fallback GPU & Touchpad Defaults
 install -d -m 755 "${ROOTFS_DIR}/etc/X11/xorg.conf.d" "${ROOTFS_DIR}/usr/share/X11/xorg.conf.d"
 cat << 'EOF' > "${ROOTFS_DIR}/etc/X11/xorg.conf.d/99-v3d.conf"
@@ -494,7 +498,17 @@ on_chroot <<- \EOF
 	/usr/local/sbin/krubus-kde-polish || true
 	update-alternatives --set x-www-browser /usr/bin/firefox || true
 	update-alternatives --set gnome-www-browser /usr/bin/firefox || true
-	plymouth-set-default-theme spinner || true
+	plymouth-set-default-theme krubus || true
+
+	# Disable kwin_screencast inside SDDM Wayland Greeter (prevents +10.5s PipeWire timeout freeze)
+	install -d -m 700 -o sddm -g sddm /var/lib/sddm/.config
+	cat <<- 'SDDMKWIN' > /var/lib/sddm/.config/kwinrc
+	[Plugins]
+	screencastEnabled=false
+	SDDMKWIN
+	chown -R sddm:sddm /var/lib/sddm/.config
+	chmod 600 /var/lib/sddm/.config/kwinrc
+
 	flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
 	apt-get purge -y irqbalance xserver-xorg-video-fbdev 2>/dev/null || true
 
