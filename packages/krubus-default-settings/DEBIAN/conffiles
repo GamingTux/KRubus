@@ -12,3 +12,5 @@
 /etc/modules-load.d/bbr.conf
 /etc/modules-load.d/i2c-dev.conf
 /etc/xdg/ddcutil/ddcutilrc
+/etc/firefox/policies/policies.json
+/etc/firefox-esr/policies/policies.json

@@ -449,6 +449,9 @@ EOF
 cat << 'EOF' > "${ROOTFS_DIR}/etc/firefox/policies/policies.json"
 {
   "policies": {
+    "DisablePocket": true,
+    "DisableTelemetry": true,
+    "DisableFirefoxStudies": true,
     "EncryptedMediaExtensions": {
       "Enabled": true,
       "Locked": false
@@ -467,6 +470,10 @@ cat << 'EOF' > "${ROOTFS_DIR}/etc/firefox/policies/policies.json"
         "Status": "default"
       },
       "widget.dmabuf.force-enabled": {
+        "Value": true,
+        "Status": "default"
+      },
+      "widget.wayland.opaque-region.enabled": {
         "Value": true,
         "Status": "default"
       },
@@ -504,6 +511,30 @@ cat << 'EOF' > "${ROOTFS_DIR}/etc/firefox/policies/policies.json"
       },
       "browser.cache.memory.enable": {
         "Value": true,
+        "Status": "default"
+      },
+      "browser.cache.memory.capacity": {
+        "Value": 262144,
+        "Status": "default"
+      },
+      "browser.cache.memory.max_entry_size": {
+        "Value": 51200,
+        "Status": "default"
+      },
+      "browser.tabs.unloadOnLowMemory": {
+        "Value": true,
+        "Status": "default"
+      },
+      "browser.newtabpage.activity-stream.showSponsored": {
+        "Value": false,
+        "Status": "default"
+      },
+      "browser.newtabpage.activity-stream.showSponsoredTopSites": {
+        "Value": false,
+        "Status": "default"
+      },
+      "browser.newtabpage.activity-stream.feeds.section.topstories": {
+        "Value": false,
         "Status": "default"
       }
     }
