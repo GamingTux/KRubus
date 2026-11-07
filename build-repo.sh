@@ -137,6 +137,28 @@ FINALIZED=0
 
 # Lokale KRubus-Pakete aus packages/ automatisch bauen, in pool/main bereitstellen und schützen
 if [[ -d "$ROOT_DIR/packages" ]]; then
+  # Externe Upstream-Pakete vor dem Bau auf Aktualisierungen prüfen
+  if [[ -d "$ROOT_DIR/packages/rpi-suspend" ]]; then
+    echo "🔍 Prüfe https://github.com/GamingTux/rpi-suspend auf Updates..."
+    TMP_SUSPEND="$(mktemp -d)"
+    if git clone --depth 1 "https://github.com/GamingTux/rpi-suspend.git" "$TMP_SUSPEND" >/dev/null 2>&1; then
+      if [[ -d "$TMP_SUSPEND/pkg/DEBIAN" ]]; then
+        UP_VER="$(grep -i '^Version:' "$TMP_SUSPEND/pkg/DEBIAN/control" | awk '{print $2}')"
+        CUR_VER="$(grep -i '^Version:' "$ROOT_DIR/packages/rpi-suspend/DEBIAN/control" | awk '{print $2}')"
+        if [[ "$UP_VER" != "$CUR_VER" ]]; then
+          echo "✨ Neues rpi-suspend Update gefunden: ${CUR_VER} -> ${UP_VER}"
+        fi
+        rm -rf "$ROOT_DIR/packages/rpi-suspend"
+        cp -a "$TMP_SUSPEND/pkg" "$ROOT_DIR/packages/rpi-suspend"
+        chmod 0755 "$ROOT_DIR/packages/rpi-suspend/DEBIAN/postinst" \
+                   "$ROOT_DIR/packages/rpi-suspend/DEBIAN/prerm" \
+                   "$ROOT_DIR/packages/rpi-suspend/DEBIAN/postrm" \
+                   "$ROOT_DIR/packages/rpi-suspend/usr/bin/rpi-suspend" 2>/dev/null || true
+      fi
+    fi
+    rm -rf "$TMP_SUSPEND"
+  fi
+
   for pkg_dir in "$ROOT_DIR"/packages/*; do
     [[ -d "$pkg_dir/DEBIAN" ]] || continue
     pkg_name="$(grep -i '^Package:' "$pkg_dir/DEBIAN/control" | awk '{print $2}')"
