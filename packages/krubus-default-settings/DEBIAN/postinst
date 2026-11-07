@@ -1,0 +1,41 @@
+#!/bin/bash
+set -e
+
+chmod 755 /usr/sbin/krubus-runtime-tune 2>/dev/null || true
+
+if ! ischroot 2>/dev/null; then
+    # 1. Apply kernel sysctl tweaks immediately
+    sysctl --system >/dev/null 2>&1 || true
+
+    # 2. Run runtime hardware IRQ/MGLRU tuning
+    /usr/sbin/krubus-runtime-tune >/dev/null 2>&1 || true
+
+    # 3. Reload udev rules
+    udevadm control --reload 2>/dev/null || true
+
+    # 4. Restart earlyoom with KDE Plasma crash protection
+    systemctl try-restart earlyoom.service 2>/dev/null || true
+
+    # 5. Reload journald with syslog suppression
+    systemctl try-reload-or-restart systemd-journald.service 2>/dev/null || true
+
+    # 6. Ensure MESA_DISK_CACHE_SINGLE_FILE is in /etc/environment
+    if [ -f /etc/environment ] && ! grep -q "MESA_DISK_CACHE_SINGLE_FILE" /etc/environment; then
+        echo "MESA_DISK_CACHE_SINGLE_FILE=1" >> /etc/environment
+    fi
+
+    # 7. Reload PipeWire in running desktop user sessions
+    for bus_sock in /run/user/[0-9]*/bus; do
+        [ -S "$bus_sock" ] || continue
+        uid_dir="$(dirname "$bus_sock")"
+        uid="$(basename "$uid_dir")"
+        uname="$(id -nu "$uid" 2>/dev/null || true)"
+        [ -n "$uname" ] || continue
+        runuser -u "$uname" -- env \
+            XDG_RUNTIME_DIR="$uid_dir" \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=$bus_sock" \
+            systemctl --user try-restart pipewire.service >/dev/null 2>&1 || true
+    done
+fi
+
+exit 0

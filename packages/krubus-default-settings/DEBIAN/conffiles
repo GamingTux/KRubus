@@ -1,0 +1,8 @@
+/etc/sysctl.d/99-krubus-pi5.conf
+/etc/systemd/zram-generator.conf
+/etc/systemd/journald.conf.d/99-persistent.conf
+/etc/default/earlyoom
+/etc/pipewire/pipewire.conf.d/99-krubus.conf
+/etc/udev/rules.d/60-ondemand-governor.rules
+/etc/udev/rules.d/90-krubus-runtime.rules
+/etc/environment.d/99-krubus.conf

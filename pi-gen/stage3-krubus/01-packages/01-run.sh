@@ -589,16 +589,20 @@ elif [ -f "${ROOTFS_DIR}/etc/bluetooth/main.conf" ]; then
 fi
 
 # 10. Chroot Finalization: ZRAM, Locales, Flathub, Plymouth, Timeouts & Fast-Boot Presets
-if [ -d "../../../packages/rpi-power-profiles/DEBIAN" ]; then
-	dpkg-deb --root-owner-group -b "../../../packages/rpi-power-profiles" "${ROOTFS_DIR}/tmp/rpi-power-profiles.deb" >/dev/null
-fi
+for local_pkg in rpi-power-profiles krubus-default-settings; do
+	if [ -d "../../../packages/${local_pkg}/DEBIAN" ]; then
+		dpkg-deb --root-owner-group -b "../../../packages/${local_pkg}" "${ROOTFS_DIR}/tmp/${local_pkg}.deb" >/dev/null
+	fi
+done
 
 on_chroot <<- \EOF
 	export DEBIAN_FRONTEND=noninteractive
-	if [ -f /tmp/rpi-power-profiles.deb ]; then
-		apt-get install -y /tmp/rpi-power-profiles.deb || true
-		rm -f /tmp/rpi-power-profiles.deb
-	fi
+	for local_pkg in rpi-power-profiles krubus-default-settings; do
+		if [ -f "/tmp/${local_pkg}.deb" ]; then
+			apt-get install -y "/tmp/${local_pkg}.deb" || true
+			rm -f "/tmp/${local_pkg}.deb"
+		fi
+	done
 	/usr/local/sbin/krubus-kde-polish || true
 	update-alternatives --set x-www-browser /usr/bin/firefox || true
 	update-alternatives --set gnome-www-browser /usr/bin/firefox || true
