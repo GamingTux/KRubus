@@ -36,6 +36,15 @@ if ! ischroot 2>/dev/null; then
             DBUS_SESSION_BUS_ADDRESS="unix:path=$bus_sock" \
             systemctl --user try-restart pipewire.service >/dev/null 2>&1 || true
     done
+
+    # 8. Reload ZRAM to activate zstd algorithm and new scaling (if swap is unused)
+    if [ -b /dev/zram0 ]; then
+        cur_used="$(swapon --noheadings --show=USED /dev/zram0 2>/dev/null | xargs || true)"
+        if [ "$cur_used" = "0B" ] || [ -z "$cur_used" ]; then
+            swapoff /dev/zram0 >/dev/null 2>&1 || true
+            systemctl restart systemd-zram-setup@zram0.service >/dev/null 2>&1 || true
+        fi
+    fi
 fi
 
 exit 0
