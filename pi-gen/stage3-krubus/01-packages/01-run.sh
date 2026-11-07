@@ -686,8 +686,10 @@ on_chroot <<- \EOF
 	rm -f /var/swap
 
 	# EarlyOOM: protect KDE Plasma Wayland session, SDDM, systemd & PipeWire from being killed
-	cat <<- 'EARLYOOMCONF' > /etc/default/earlyoom
-	EARLYOOM_ARGS="-m 4 -s 15 --avoid '(^|/)(kwin_wayland|plasmashell|sddm|systemd|dbus-daemon|pipewire|wireplumber)$' -r 3600"
+	install -d -m 755 /etc/systemd/system/earlyoom.service.d
+	cat <<- 'EARLYOOMCONF' > /etc/systemd/system/earlyoom.service.d/krubus.conf
+	[Service]
+	Environment=EARLYOOM_ARGS="-m 4 -s 15 --avoid '(^|/)(kwin_wayland|plasmashell|sddm|systemd|dbus-daemon|pipewire|wireplumber)$' -r 3600"
 	EARLYOOMCONF
 
 	# Fast shutdown/reboot timeouts & Wayland environment variables
