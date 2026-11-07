@@ -1,0 +1,2 @@
+[global]
+options: --sleep-multiplier 0.5 --disable-heuristic-unsupported

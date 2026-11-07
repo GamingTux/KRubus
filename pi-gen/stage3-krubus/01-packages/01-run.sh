@@ -96,7 +96,7 @@ EOF
 
 cat << 'EOF' > "${ROOTFS_DIR}/etc/xdg/ddcutil/ddcutilrc"
 [global]
-options: --disable-dynamic-sleep --sleep-multiplier 0.1 --disable-heuristic-unsupported
+options: --sleep-multiplier 0.5 --disable-heuristic-unsupported
 EOF
 
 if [ -f "${ROOTFS_DIR}/etc/xdg/menus/plasma-applications.menu" ] && [ ! -e "${ROOTFS_DIR}/etc/xdg/menus/applications.menu" ]; then

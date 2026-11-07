@@ -10,3 +10,4 @@
 /etc/environment.d/99-krubus.conf
 /etc/modules-load.d/bbr.conf
 /etc/modules-load.d/i2c-dev.conf
+/etc/xdg/ddcutil/ddcutilrc
