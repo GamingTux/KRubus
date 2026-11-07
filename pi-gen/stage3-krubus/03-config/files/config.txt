@@ -5,7 +5,7 @@
 dtparam=i2c_arm=on
 #dtparam=spi=on
 dtparam=uart0=on
-dtparam=audio=on
+#dtparam=audio=on
 arm_64bit=1
 arm_boost=1
 

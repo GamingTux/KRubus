@@ -10,6 +10,7 @@ EOF
 
 # 2. Update /boot/firmware/cmdline.txt for Btrfs rootfs & quiet Plymouth splash
 if [ -f "${ROOTFS_DIR}/boot/firmware/cmdline.txt" ]; then
+	sed -i 's/console=serial0,[0-9]*[[:space:]]*//g' "${ROOTFS_DIR}/boot/firmware/cmdline.txt"
 	sed -i 's/rootfstype=ext4/rootfstype=btrfs rootflags=compress=zstd:1,noatime,nodiratime,commit=60/g' "${ROOTFS_DIR}/boot/firmware/cmdline.txt"
 	sed -i 's/fsck.repair=yes/fsck.repair=no/g' "${ROOTFS_DIR}/boot/firmware/cmdline.txt"
 	sed -i 's/\bresize\b//g; s/[[:space:]]*$//' "${ROOTFS_DIR}/boot/firmware/cmdline.txt"
