@@ -68,6 +68,21 @@ EOF
   chmod +x /usr/bin/dpkg-deb
 fi
 
+# Globaler Debhelper dh_missing Wrapper: Verhindert Build-Abbrüche (--fail-missing), wenn optionale Tools im Container (valac/groff) Zusatzdateien erzeugen oder Stage 3 (-B) Arch:all überspringt
+if [[ ! -f /usr/bin/dh_missing.distrib ]]; then
+  dpkg-divert --local --rename --add /usr/bin/dh_missing
+  cat << 'EOF' > /usr/bin/dh_missing
+#!/bin/bash
+args=()
+for arg in "$@"; do
+  [[ "$arg" == "--fail-missing" ]] && continue
+  args+=("$arg")
+done
+exec /usr/bin/dh_missing.distrib --list-missing "${args[@]}"
+EOF
+  chmod +x /usr/bin/dh_missing
+fi
+
 # Unnötige Dokumentations-, Debug-, Source- und Cross-Compile-Pakete aus bestehendem Pool bereinigen
 rm -f "$REPO_DIR"/pool/main/*dbgsym*.deb \
       "$REPO_DIR"/pool/main/*-dbg_*.deb \
@@ -298,7 +313,15 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
       export DEB_CXXFLAGS_MAINT_APPEND=""
       export DEB_LDFLAGS_MAINT_APPEND=""
       ;;
-    xz-utils|tar|re2|gmp|libxcrypt|nettle|gnutls28|openssl|gnupg2|openssh|highway|icu|glib2.0|systemd|util-linux|coreutils|bash|dpkg|apt|e2fsprogs|udisks2|libblockdev|xorg-server|mesa|xwayland|librsvg|poppler|djvulibre|aom|svt-av1|jpeg-xl|libplacebo|alsa-lib|pulseaudio|pipewire|wireplumber|gstreamer1.0|gst-plugins-base1.0|gst-plugins-good1.0|gst-plugins-bad1.0|gst-plugins-ugly1.0|gst-libav1.0|ffmpeg|mpv|vlc|gtk+3.0|gtk4|python3.13|btop|libcamera|rpicam-apps|vulkan-loader|glslang|spirv-tools|shaderc|qt6-*|kf6-*|kwin|plasma-*|libplasma|breeze*|dolphin|konsole|kate|gwenview|okular|ark|kde-*|haruna|elisa-player|kolourpaint|partitionmanager)
+    systemd)
+      USE_LTO=0
+      OPT_LEVEL="-O3"
+      # systemd-boot UEFI-Stubs (elf2efi.py) verlangen exakt 4096-Byte PE-Alignment (kein common-page-size=16384 erzwingen)
+      export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_FLAGS"
+      export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_FLAGS"
+      export DEB_LDFLAGS_MAINT_APPEND="-Wl,-O3 -Wl,--as-needed -Wl,--hash-style=gnu"
+      ;;
+    xz-utils|tar|re2|gmp|libxcrypt|nettle|gnutls28|openssl|gnupg2|openssh|highway|icu|glib2.0|util-linux|coreutils|bash|dpkg|apt|e2fsprogs|udisks2|libblockdev|xorg-server|mesa|xwayland|librsvg|poppler|djvulibre|aom|svt-av1|jpeg-xl|libplacebo|alsa-lib|pulseaudio|pipewire|wireplumber|gstreamer1.0|gst-plugins-base1.0|gst-plugins-good1.0|gst-plugins-bad1.0|gst-plugins-ugly1.0|gst-libav1.0|ffmpeg|mpv|vlc|gtk+3.0|gtk4|python3.13|btop|libcamera|rpicam-apps|vulkan-loader|glslang|spirv-tools|shaderc|qt6-*|kf6-*|kwin|plasma-*|libplasma|breeze*|dolphin|konsole|kate|gwenview|okular|ark|kde-*|haruna|elisa-player|kolourpaint|partitionmanager)
       # Aus LMPE bekannte Pakete mit Inline-ASM, Rust oder Linker-Version-Scripts direkt ohne LTO-Umweg mit vollem -O3+Graphite bauen
       USE_LTO=0
       OPT_LEVEL="-O3"
@@ -322,6 +345,9 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
     OPT_LEVEL="-O3 (Cortex-A76 glibc)"
     export DEB_BUILD_OPTIONS="nocheck nodoc parallel=$(nproc)"
     export DEB_BUILD_PROFILES="nocheck nodoc noudeb nobiarch"
+  elif [[ "$pkg" == "rpi-imager" ]]; then
+    export DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)"
+    export DEB_BUILD_PROFILES="nocheck desktop cli"
   elif [[ "$pkg" == "linux" ]]; then
     USE_LTO=0
     OPT_LEVEL="-O3 (1000Hz rpi-2712 + rpi-v8)"
@@ -482,8 +508,12 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
     elif [[ "$pkg" == "re2" ]]; then
       sed -i "s|export DEB_CXXFLAGS_MAINT_APPEND=.*|export DEB_CXXFLAGS_MAINT_APPEND=-pthread -Wall -std=c++14 ${ARCH_FLAGS} ${OPT_FLAGS}|" debian/rules || true
     elif [[ "$pkg" == "glibc" ]]; then
-      # glibc nutzt in debian/rules eigenes HOST_CFLAGS statt dpkg-buildflags (ohne -O3 in rtld dl-reloc, aber mit vollem Cortex-A76 + Vectorize + 64KB/512KB Cache-Tuning)
+      # glibc nutzt in debian/rules eigenes HOST_CFLAGS statt dpkg-buildflags; BTI-Zwang (-z,force-bti / --enable-bti) für Cortex-A76 (Armv8.2 ohne BTI) deaktivieren
       sed -i "s|^HOST_CFLAGS =.*|HOST_CFLAGS = -pipe -O2 ${ARCH_FLAGS} -ftree-vectorize -fomit-frame-pointer -fno-math-errno -fdebug-prefix-map=\$(CURDIR)=. \$(call xx,extra_cflags)|" debian/rules || true
+      grep -rl -- 'force-bti\|enable-bti' debian/ sysdeps/ Makeconfig configure* 2>/dev/null | xargs -r sed -i 's/--enable-bti/--disable-bti/g; s/-Wl,-z,force-bti,--fatal-warnings//g; s/-Wl,-z,force-bti//g; s/-z,force-bti//g; s/-z force-bti//g' || true
+    elif [[ "$pkg" == "fastfetch" ]]; then
+      # Deaktiviere Apple-Silicon Asahi-DRM-Check (inkompatibel mit RPi Linux 6.18 UAPI-Headern und auf Pi 5 unnötig)
+      sed -i 's|drm/asahi_drm.h|drm/nonexistent_asahi.h|g' CMakeLists.txt || true
     elif [[ "$pkg" == "mesa" ]]; then
       echo "   🎨 Optimiere Mesa für Raspberry Pi 5 (V3D/VC4/Zink/LLVMpipe only – entferne AMD/Intel/Nvidia/Qualcomm/Mali Ballast)..."
       sed -i 's/-Dbuild-tests=true/-Dbuild-tests=false/g' debian/rules || true
