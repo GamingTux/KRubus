@@ -91,8 +91,54 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 EOF
 
+cat << 'EOF' > "${ROOTFS_DIR}/usr/local/sbin/krubus-btrfs-compress.sh"
+#!/bin/bash
+set -e
+[ -f /var/lib/krubus-btrfs-compressed ] && exit 0
+ROOT_PART="$(findmnt -n -o SOURCE /)"
+ROOT_PART="${ROOT_PART%%\[*}"
+if [[ "$ROOT_PART" =~ ^/dev/nvme ]]; then
+	ZSTD_LVL=1
+else
+	ZSTD_LVL=6
+fi
+# Compress boot hotpath (/usr/lib, /usr/bin) first so even an early reboot is fast, then the rest of /
+btrfs filesystem defragment -r -czstd -L "${ZSTD_LVL}" /usr/lib /usr/bin 2>/dev/null || true
+btrfs filesystem defragment -r -czstd -L "${ZSTD_LVL}" / 2>/dev/null || true
+touch /var/lib/krubus-btrfs-compressed
+systemctl disable krubus-btrfs-compress.timer 2>/dev/null || true
+EOF
+chmod 755 "${ROOTFS_DIR}/usr/local/sbin/krubus-btrfs-compress.sh"
+
+cat << 'EOF' > "${ROOTFS_DIR}/etc/systemd/system/krubus-btrfs-compress.service"
+[Unit]
+Description=Background Btrfs Zstd Rootfs Compression (NVMe zstd:1 / SD zstd:6)
+ConditionPathExists=!/var/lib/krubus-btrfs-compressed
+After=krubus-btrfs-resize.service multi-user.target
+
+[Service]
+Type=oneshot
+Nice=19
+IOSchedulingClass=idle
+CPUSchedulingPolicy=idle
+ExecStart=/usr/local/sbin/krubus-btrfs-compress.sh
+EOF
+
+cat << 'EOF' > "${ROOTFS_DIR}/etc/systemd/system/krubus-btrfs-compress.timer"
+[Unit]
+Description=Trigger one-time idle Btrfs Zstd compression after first boot
+ConditionPathExists=!/var/lib/krubus-btrfs-compressed
+
+[Timer]
+OnBootSec=120s
+Unit=krubus-btrfs-compress.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
 on_chroot <<- \EOF
 	systemctl disable rpi-resize.service 2>/dev/null || true
 	systemctl mask rpi-resize.service 2>/dev/null || true
-	systemctl enable krubus-btrfs-resize.service
+	systemctl enable krubus-btrfs-resize.service krubus-btrfs-compress.timer
 EOF

@@ -675,6 +675,8 @@ on_chroot <<- \EOF
 	install -d -m 755 /etc/systemd/system-preset
 	cat <<- 'EOF_PRESET' > /etc/systemd/system-preset/00-krubus.preset
 	enable sddm.service
+	enable krubus-btrfs-resize.service
+	enable krubus-btrfs-compress.timer
 	enable rpi-eeprom-update.timer
 	enable cups.socket
 	disable rpi-eeprom-update.service

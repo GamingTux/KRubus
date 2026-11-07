@@ -284,6 +284,7 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
   USE_LTO=1
   export DEB_CFLAGS_MAINT_STRIP="$STRIP_FLAGS"
   export DEB_CXXFLAGS_MAINT_STRIP="$STRIP_FLAGS"
+  PKG_LINK_FLAGS="$LINK_FLAGS"
 
   case "$pkg" in
     libgcrypt20)
@@ -292,6 +293,13 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
       # libgcrypt20 ersetzt in random/Makefile per sed das erste -O2 durch -O0 für jitterentropy; kein -O3 anhängen
       export DEB_CFLAGS_MAINT_STRIP="-g -mbranch-protection=standard"
       export DEB_CXXFLAGS_MAINT_STRIP="-g -mbranch-protection=standard"
+      export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS -fomit-frame-pointer -g0"
+      export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS -fomit-frame-pointer -g0"
+      export DEB_LDFLAGS_MAINT_APPEND="$LINK_FLAGS"
+      ;;
+    fftw3|openblas|blis|lapack|eigen3)
+      USE_LTO=0
+      OPT_LEVEL="Upstream-SIMD"
       export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS -fomit-frame-pointer -g0"
       export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS -fomit-frame-pointer -g0"
       export DEB_LDFLAGS_MAINT_APPEND="$LINK_FLAGS"
@@ -306,6 +314,7 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
       ;;
     glibc|linux)
       USE_LTO=0
+      PKG_LINK_FLAGS=""
       # glibc (HOST_CFLAGS) und linux (KCFLAGS) erhalten ihre Cortex-A76-Flags direkt über debian/rules(.real), damit Host-Tools (rtld/fixdep/objtool) sauber bauen
       export DEB_CFLAGS_MAINT_STRIP=""
       export DEB_CXXFLAGS_MAINT_STRIP=""
@@ -315,11 +324,12 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
       ;;
     systemd)
       USE_LTO=0
-      OPT_LEVEL="-O3"
-      # systemd-boot UEFI-Stubs (elf2efi.py) verlangen exakt 4096-Byte PE-Alignment (kein common-page-size=16384 erzwingen)
-      export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_FLAGS"
-      export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_FLAGS"
-      export DEB_LDFLAGS_MAINT_APPEND="-Wl,-O3 -Wl,--as-needed -Wl,--hash-style=gnu"
+      OPT_LEVEL="-O3 (EFI-4K-safe)"
+      PKG_LINK_FLAGS="-Wl,-O3 -Wl,--as-needed -Wl,--hash-style=gnu"
+      # systemd-boot UEFI-Stubs (elf2efi.py) verlangen exakt 4096-Byte PE-Alignment (kein max-page-size=16384) und saubere Freestanding/Interposition-Flags
+      export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS -O3 -ftree-vectorize -fvect-cost-model=dynamic -fomit-frame-pointer -Wno-error -g0"
+      export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS -O3 -ftree-vectorize -fvect-cost-model=dynamic -fomit-frame-pointer -Wno-error -g0"
+      export DEB_LDFLAGS_MAINT_APPEND="$PKG_LINK_FLAGS"
       ;;
     xz-utils|tar|re2|gmp|libxcrypt|nettle|gnutls28|openssl|gnupg2|openssh|highway|icu|glib2.0|util-linux|coreutils|bash|dpkg|apt|e2fsprogs|udisks2|libblockdev|xorg-server|mesa|xwayland|librsvg|poppler|djvulibre|aom|svt-av1|jpeg-xl|libplacebo|alsa-lib|pulseaudio|pipewire|wireplumber|gstreamer1.0|gst-plugins-base1.0|gst-plugins-good1.0|gst-plugins-bad1.0|gst-plugins-ugly1.0|gst-libav1.0|ffmpeg|mpv|vlc|gtk+3.0|gtk4|python3.13|btop|libcamera|rpicam-apps|vulkan-loader|glslang|spirv-tools|shaderc|qt6-*|kf6-*|kwin|plasma-*|libplasma|breeze*|dolphin|konsole|kate|gwenview|okular|ark|kde-*|haruna|elisa-player|kolourpaint|partitionmanager)
       # Aus LMPE bekannte Pakete mit Inline-ASM, Rust oder Linker-Version-Scripts direkt ohne LTO-Umweg mit vollem -O3+Graphite bauen
@@ -345,9 +355,6 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
     OPT_LEVEL="-O3 (Cortex-A76 glibc)"
     export DEB_BUILD_OPTIONS="nocheck nodoc parallel=$(nproc)"
     export DEB_BUILD_PROFILES="nocheck nodoc noudeb nobiarch"
-  elif [[ "$pkg" == "rpi-imager" ]]; then
-    export DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)"
-    export DEB_BUILD_PROFILES="nocheck desktop cli"
   elif [[ "$pkg" == "linux" ]]; then
     USE_LTO=0
     OPT_LEVEL="-O3 (1000Hz rpi-2712 + rpi-v8)"
@@ -510,12 +517,13 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
     elif [[ "$pkg" == "re2" ]]; then
       sed -i "s|export DEB_CXXFLAGS_MAINT_APPEND=.*|export DEB_CXXFLAGS_MAINT_APPEND=-pthread -Wall -std=c++14 ${ARCH_FLAGS} ${OPT_FLAGS}|" debian/rules || true
     elif [[ "$pkg" == "glibc" ]]; then
-      # glibc nutzt in debian/rules eigenes HOST_CFLAGS statt dpkg-buildflags; BTI-Zwang (-z,force-bti / --enable-bti) für Cortex-A76 (Armv8.2 ohne BTI) deaktivieren
-      sed -i "s|^HOST_CFLAGS =.*|HOST_CFLAGS = -pipe -O2 ${ARCH_FLAGS} -ftree-vectorize -fomit-frame-pointer -fno-math-errno -fdebug-prefix-map=\$(CURDIR)=. \$(call xx,extra_cflags)|" debian/rules || true
+      # glibc nutzt in debian/rules eigenes HOST_CFLAGS statt dpkg-buildflags; nutze -march=armv8.2-a+... statt -mcpu=, damit libmvec SVE (-march=armv8-a+sve -Werror) konfliktfrei baut
+      GLIBC_A76_FLAGS="-march=armv8.2-a+crypto+fp16+rcpc+dotprod -mtune=cortex-a76 -mno-fix-cortex-a53-835769 -mno-fix-cortex-a53-843419 -mbranch-protection=none -mno-outline-atomics -mearly-ra=all --param l1-cache-size=64 --param l1-cache-line-size=64 --param l2-cache-size=512 -Wno-error"
+      sed -i "s|^HOST_CFLAGS =.*|HOST_CFLAGS = -pipe -O2 ${GLIBC_A76_FLAGS} -ftree-vectorize -fomit-frame-pointer -fno-math-errno -fdebug-prefix-map=\$(CURDIR)=. \$(call xx,extra_cflags)|" debian/rules || true
       grep -rl -- 'force-bti\|enable-bti' debian/ sysdeps/ Makeconfig configure* 2>/dev/null | xargs -r sed -i 's/--enable-bti/--disable-bti/g; s/-Wl,-z,force-bti,--fatal-warnings//g; s/-Wl,-z,force-bti//g; s/-z,force-bti//g; s/-z force-bti//g' || true
     elif [[ "$pkg" == "fastfetch" ]]; then
-      # Deaktiviere Apple-Silicon Asahi-DRM-Check (inkompatibel mit RPi Linux 6.18 UAPI-Headern und auf Pi 5 unnötig)
-      sed -i 's|drm/asahi_drm.h|drm/nonexistent_asahi.h|g' CMakeLists.txt || true
+      # Deaktiviere Apple-Silicon Asahi-DRM-Check überall (CMakeLists.txt & __has_include in gpu_linux.c – inkompatibel mit RPi Linux 6.18 UAPI-Headern)
+      grep -rl 'asahi_drm\.h' . 2>/dev/null | xargs -r sed -i 's|asahi_drm\.h|nonexistent_asahi_drm.h|g' || true
     elif [[ "$pkg" == "ksystemstats" ]]; then
       echo "   📊 Patche ksystemstats für Raspberry Pi 5 (/proc/cpuinfo EOF-Fix, cpu_thermal, SD/MMC Disk-Filter & Broadcom V3D GPU)..."
       python3 "$ROOT_DIR/patches/patch-ksystemstats-pi5.py" .
@@ -616,19 +624,21 @@ KCEOF
     BUILD_MODE="-b"
     [[ "$pkg" == "xz-utils" ]] && BUILD_MODE="-B"
     if ! run_dpkg_build_with_heartbeat "$pkg" "$CURRENT" "$TOTAL" "$LOG_FILE" "$BUILD_MODE"; then
-      if [[ "$USE_LTO" -eq 1 ]]; then
+      if [[ "$pkg" == "glibc" || "$pkg" == "linux" ]]; then
+        STEP_OK=0
+      elif [[ "$USE_LTO" -eq 1 ]]; then
         echo "   🔄 [$CURRENT/$TOTAL] LTO-Build für $pkg fehlgeschlagen – wiederhole automatisch ohne LTO (mit vollem $ARCH_FLAGS -O3)..."
         OPT_LEVEL="-O3"
         export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_FLAGS"
         export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS $OPT_FLAGS"
-        export DEB_LDFLAGS_MAINT_APPEND="$LINK_FLAGS"
+        export DEB_LDFLAGS_MAINT_APPEND="$PKG_LINK_FLAGS"
         debian/rules clean < /dev/null >> "$LOG_FILE" 2>&1 || true
         if ! run_dpkg_build_with_heartbeat "$pkg" "$CURRENT" "$TOTAL" "$LOG_FILE" "$BUILD_MODE"; then
           echo "   🔄 [$CURRENT/$TOTAL] Build (-b) für $pkg fehlgeschlagen – wiederhole mit Safe-Cortex-A76 (-O2 -B)..."
           OPT_LEVEL="-O2"
           export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS $SAFE_OPT_FLAGS"
           export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS $SAFE_OPT_FLAGS"
-          export DEB_LDFLAGS_MAINT_APPEND="$LINK_FLAGS"
+          export DEB_LDFLAGS_MAINT_APPEND="$PKG_LINK_FLAGS"
           debian/rules clean < /dev/null >> "$LOG_FILE" 2>&1 || true
           if ! run_dpkg_build_with_heartbeat "$pkg" "$CURRENT" "$TOTAL" "$LOG_FILE" "-B"; then
             STEP_OK=0
@@ -639,7 +649,7 @@ KCEOF
         OPT_LEVEL="-O2"
         export DEB_CFLAGS_MAINT_APPEND="$ARCH_FLAGS $SAFE_OPT_FLAGS"
         export DEB_CXXFLAGS_MAINT_APPEND="$ARCH_FLAGS $SAFE_OPT_FLAGS"
-        export DEB_LDFLAGS_MAINT_APPEND="$LINK_FLAGS"
+        export DEB_LDFLAGS_MAINT_APPEND="$PKG_LINK_FLAGS"
         debian/rules clean < /dev/null >> "$LOG_FILE" 2>&1 || true
         if ! run_dpkg_build_with_heartbeat "$pkg" "$CURRENT" "$TOTAL" "$LOG_FILE" "-B"; then
           STEP_OK=0

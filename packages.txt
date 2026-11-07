@@ -262,7 +262,6 @@ ffmpegthumbnailer
 btop
 htop
 fastfetch
-rpi-imager
 
 # ==============================================================================
 # Stufe 1: Qt6, KDE Frameworks 6 (KF6), KDE Plasma 6 & KDE Gear Kernpakete
