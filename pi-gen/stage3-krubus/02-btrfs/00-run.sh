@@ -56,6 +56,20 @@ elif [[ "$ROOT_PART" =~ ^/dev/(sd[a-z]+)([0-9]+)$ ]]; then
 	partx -u "${PART}" "/dev/${DISK}" 2>/dev/null || partprobe "/dev/${DISK}" 2>/dev/null || true
 fi
 btrfs filesystem resize max / || true
+
+# Storage-aware Btrfs zstd tuning: zstd:1 for fast PCIe NVMe (~485 MiB/s), zstd:6 for SD/USB (~36.5 MiB/s cold read & max flash life)
+if [[ "$ROOT_PART" =~ ^/dev/nvme ]]; then
+	ZSTD_LVL=1
+else
+	ZSTD_LVL=6
+fi
+sed -i -E "s/compress=zstd:[0-9]+/compress=zstd:${ZSTD_LVL}/g" /etc/fstab 2>/dev/null || true
+mount /boot/firmware 2>/dev/null || true
+if [ -f /boot/firmware/cmdline.txt ]; then
+	sed -i -E "s/compress=zstd:[0-9]+/compress=zstd:${ZSTD_LVL}/g" /boot/firmware/cmdline.txt 2>/dev/null || true
+fi
+mount -o "remount,compress=zstd:${ZSTD_LVL}" / 2>/dev/null || true
+
 systemctl disable krubus-btrfs-resize.service || true
 EOF
 chmod 755 "${ROOTFS_DIR}/usr/local/sbin/krubus-btrfs-resize.sh"
