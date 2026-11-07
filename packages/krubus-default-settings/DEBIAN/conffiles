@@ -4,6 +4,7 @@
 /etc/systemd/system.conf.d/99-krubus-timeout.conf
 /etc/systemd/user.conf.d/99-krubus-timeout.conf
 /etc/systemd/system/earlyoom.service.d/krubus.conf
+/etc/systemd/user/plasma-powerdevil.service.d/override.conf
 /etc/pipewire/pipewire.conf.d/99-krubus.conf
 /etc/udev/rules.d/60-ondemand-governor.rules
 /etc/udev/rules.d/90-krubus-runtime.rules

@@ -140,6 +140,7 @@ cat << 'EOF' > "${ROOTFS_DIR}/etc/systemd/user/plasma-powerdevil.service.d/overr
 [Service]
 UnsetEnvironment=LC_ALL
 Environment=LC_NUMERIC=C.UTF-8
+ExecStartPre=/bin/sleep 2
 EOF
 
 cat << 'EOF' > "${ROOTFS_DIR}/etc/systemd/user/ssh-agent.service.d/override.conf"

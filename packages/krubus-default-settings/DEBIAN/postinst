@@ -10,7 +10,8 @@ if ! ischroot 2>/dev/null; then
         /etc/systemd/zram-generator.conf \
         /etc/systemd/journald.conf.d/99-persistent.conf \
         /etc/pipewire/pipewire.conf.d/99-krubus.conf \
-        /etc/xdg/ddcutil/ddcutilrc; do
+        /etc/xdg/ddcutil/ddcutilrc \
+        /etc/systemd/user/plasma-powerdevil.service.d/override.conf; do
         if [ -f "${cfg}.dpkg-dist" ]; then
             mv -f "${cfg}.dpkg-dist" "$cfg"
         fi
