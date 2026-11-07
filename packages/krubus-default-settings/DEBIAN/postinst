@@ -11,9 +11,21 @@ if ! ischroot 2>/dev/null; then
         /etc/systemd/journald.conf.d/99-persistent.conf \
         /etc/pipewire/pipewire.conf.d/99-krubus.conf \
         /etc/xdg/ddcutil/ddcutilrc \
+        /etc/xdg/powerdevilrc \
+        /etc/firefox/policies/policies.json \
+        /etc/firefox-esr/policies/policies.json \
         /etc/systemd/user/plasma-powerdevil.service.d/override.conf; do
         if [ -f "${cfg}.dpkg-dist" ]; then
             mv -f "${cfg}.dpkg-dist" "$cfg"
+        fi
+    done
+
+    # Ensure existing user sessions default to balanced power profile
+    for homedir in /home/*; do
+        [ -d "$homedir" ] || continue
+        pdf="$homedir/.config/powerdevilrc"
+        if [ -f "$pdf" ] && grep -q "PowerProfile=power-saver" "$pdf"; then
+            sed -i 's/PowerProfile=power-saver/PowerProfile=balanced/g' "$pdf"
         fi
     done
 
@@ -48,6 +60,10 @@ if ! ischroot 2>/dev/null; then
             XDG_RUNTIME_DIR="$uid_dir" \
             DBUS_SESSION_BUS_ADDRESS="unix:path=$bus_sock" \
             systemctl --user try-restart pipewire.service >/dev/null 2>&1 || true
+        runuser -u "$uname" -- env \
+            XDG_RUNTIME_DIR="$uid_dir" \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=$bus_sock" \
+            busctl --user call org.kde.Solid.PowerManagement /org/kde/Solid/PowerManagement org.kde.Solid.PowerManagement loadProfile b true >/dev/null 2>&1 || true
     done
 
     # 8. Reload ZRAM to activate zstd algorithm and new scaling (if swap is unused)

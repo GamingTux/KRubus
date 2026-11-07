@@ -99,6 +99,16 @@ cat << 'EOF' > "${ROOTFS_DIR}/etc/xdg/ddcutil/ddcutilrc"
 options: --sleep-multiplier 0.5 --disable-heuristic-unsupported
 EOF
 
+cat << 'EOF' > "${ROOTFS_DIR}/etc/xdg/powerdevilrc"
+[AC][Performance]
+PowerProfile=balanced
+
+[Battery][Performance]
+PowerProfile=balanced
+EOF
+install -d -m 755 "${ROOTFS_DIR}/etc/skel/.config"
+cp "${ROOTFS_DIR}/etc/xdg/powerdevilrc" "${ROOTFS_DIR}/etc/skel/.config/powerdevilrc"
+
 if [ -f "${ROOTFS_DIR}/etc/xdg/menus/plasma-applications.menu" ] && [ ! -e "${ROOTFS_DIR}/etc/xdg/menus/applications.menu" ]; then
 	ln -sf plasma-applications.menu "${ROOTFS_DIR}/etc/xdg/menus/applications.menu"
 fi
