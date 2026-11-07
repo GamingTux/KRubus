@@ -589,7 +589,7 @@ elif [ -f "${ROOTFS_DIR}/etc/bluetooth/main.conf" ]; then
 fi
 
 # 10. Chroot Finalization: ZRAM, Locales, Flathub, Plymouth, Timeouts & Fast-Boot Presets
-for local_pkg in rpi-power-profiles krubus-default-settings; do
+for local_pkg in rpi-power-profiles krubus-kernel-hook krubus-default-settings krubus-desktop; do
 	if [ -d "../../../packages/${local_pkg}/DEBIAN" ]; then
 		dpkg-deb --root-owner-group -b "../../../packages/${local_pkg}" "${ROOTFS_DIR}/tmp/${local_pkg}.deb" >/dev/null
 	fi
@@ -597,7 +597,7 @@ done
 
 on_chroot <<- \EOF
 	export DEBIAN_FRONTEND=noninteractive
-	for local_pkg in rpi-power-profiles krubus-default-settings; do
+	for local_pkg in rpi-power-profiles krubus-kernel-hook krubus-default-settings krubus-desktop; do
 		if [ -f "/tmp/${local_pkg}.deb" ]; then
 			apt-get install -y "/tmp/${local_pkg}.deb" || true
 			rm -f "/tmp/${local_pkg}.deb"
