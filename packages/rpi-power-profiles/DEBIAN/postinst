@@ -1,0 +1,19 @@
+#!/bin/bash
+set -e
+
+if systemctl list-unit-files power-profiles-daemon.service >/dev/null 2>&1; then
+    systemctl stop power-profiles-daemon.service 2>/dev/null || true
+    systemctl disable power-profiles-daemon.service 2>/dev/null || true
+fi
+
+mkdir -p /var/lib/rpi-power-profiles
+chmod 755 /var/lib/rpi-power-profiles
+
+systemctl daemon-reload 2>/dev/null || true
+systemctl unmask rpi-power-profiles.service 2>/dev/null || true
+systemctl enable rpi-power-profiles.service 2>/dev/null || true
+if [ ! -r /proc/1/root ] || [ "$(stat -c %d:%i /)" = "$(stat -c %d:%i /proc/1/root 2>/dev/null || echo none)" ]; then
+    systemctl restart rpi-power-profiles.service 2>/dev/null || true
+fi
+
+exit 0

@@ -1,0 +1,17 @@
+[Unit]
+Description=Raspberry Pi 5 & CM5 Hardware Power Profiles Daemon
+Documentation=https://github.com/GamingTux/KRubus
+Conflicts=power-profiles-daemon.service
+Before=plasma-powerdevil.service
+After=local-fs.target dbus.service
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/rpi-power-profiles
+Restart=on-failure
+RestartSec=2
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target
+Alias=power-profiles-daemon.service

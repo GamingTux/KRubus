@@ -581,8 +581,16 @@ elif [ -f "${ROOTFS_DIR}/etc/bluetooth/main.conf" ]; then
 fi
 
 # 10. Chroot Finalization: ZRAM, Locales, Flathub, Plymouth, Timeouts & Fast-Boot Presets
+if [ -d "../../../packages/rpi-power-profiles/DEBIAN" ]; then
+	dpkg-deb --root-owner-group -b "../../../packages/rpi-power-profiles" "${ROOTFS_DIR}/tmp/rpi-power-profiles.deb" >/dev/null
+fi
+
 on_chroot <<- \EOF
 	export DEBIAN_FRONTEND=noninteractive
+	if [ -f /tmp/rpi-power-profiles.deb ]; then
+		apt-get install -y /tmp/rpi-power-profiles.deb || true
+		rm -f /tmp/rpi-power-profiles.deb
+	fi
 	/usr/local/sbin/krubus-kde-polish || true
 	update-alternatives --set x-www-browser /usr/bin/firefox || true
 	update-alternatives --set gnome-www-browser /usr/bin/firefox || true
@@ -729,6 +737,7 @@ on_chroot <<- \EOF
 	install -d -m 755 /etc/systemd/system-preset
 	cat <<- 'EOF_PRESET' > /etc/systemd/system-preset/00-krubus.preset
 	enable sddm.service
+	enable rpi-power-profiles.service
 	enable krubus-btrfs-resize.service
 	enable krubus-btrfs-compress.timer
 	enable rpi-eeprom-update.timer
