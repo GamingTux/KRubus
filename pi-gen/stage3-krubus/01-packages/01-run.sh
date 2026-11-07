@@ -499,6 +499,9 @@ on_chroot <<- \EOF
 	update-alternatives --set x-www-browser /usr/bin/firefox || true
 	update-alternatives --set gnome-www-browser /usr/bin/firefox || true
 	plymouth-set-default-theme krubus || true
+	for net_helper in /usr/lib/*/libexec/ksysguard/ksgrd_network_helper; do
+		[ -f "$net_helper" ] && setcap cap_net_raw=ep "$net_helper" || true
+	done
 
 	# Disable kwin_screencast inside SDDM Wayland Greeter (prevents +10.5s PipeWire timeout freeze)
 	install -d -m 700 -o sddm -g sddm /var/lib/sddm/.config

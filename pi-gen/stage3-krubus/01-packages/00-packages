@@ -91,4 +91,5 @@ wireplumber
 libspa-0.2-bluetooth
 mesa-vulkan-drivers
 vulkan-tools
+libcap2-bin
 python3

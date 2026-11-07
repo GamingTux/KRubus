@@ -382,7 +382,9 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
     continue
   fi
 
-  TARGET_VER="${UPSTREAM_VER}+pi5"
+  PKG_VER_SUFFIX="+pi5"
+  [[ "$pkg" == "ksystemstats" ]] && PKG_VER_SUFFIX="+pi5r1"
+  TARGET_VER="${UPSTREAM_VER}${PKG_VER_SUFFIX}"
 
   # 3. Prüfen, ob im bestehenden Packages-Index bereits <upstream_version>+pi5 existiert
   DELTA_HIT=0
@@ -514,6 +516,9 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
     elif [[ "$pkg" == "fastfetch" ]]; then
       # Deaktiviere Apple-Silicon Asahi-DRM-Check (inkompatibel mit RPi Linux 6.18 UAPI-Headern und auf Pi 5 unnötig)
       sed -i 's|drm/asahi_drm.h|drm/nonexistent_asahi.h|g' CMakeLists.txt || true
+    elif [[ "$pkg" == "ksystemstats" ]]; then
+      echo "   📊 Patche ksystemstats für Raspberry Pi 5 (/proc/cpuinfo EOF-Fix, cpu_thermal, SD/MMC Disk-Filter & Broadcom V3D GPU)..."
+      python3 "$ROOT_DIR/patches/patch-ksystemstats-pi5.py" .
     elif [[ "$pkg" == "mesa" ]]; then
       echo "   🎨 Optimiere Mesa für Raspberry Pi 5 (V3D/VC4/Zink/LLVMpipe only – entferne AMD/Intel/Nvidia/Qualcomm/Mali Ballast)..."
       sed -i 's/-Dbuild-tests=true/-Dbuild-tests=false/g' debian/rules || true
@@ -547,6 +552,7 @@ PYEOF
 # CONFIG_HZ_250 is not set
 CONFIG_HZ_1000=y
 CONFIG_HZ=1000
+# CONFIG_PSI_DEFAULT_DISABLED is not set
 # CONFIG_ARM64_PTR_AUTH is not set
 # CONFIG_ARM64_PTR_AUTH_KERNEL is not set
 # CONFIG_ARM64_BTI is not set
@@ -589,11 +595,9 @@ KCEOF
       sed -i '/debian\/control-real-fail:/,/^$/ s/exit 1/true/' debian/rules || true
     fi
 
-    # Lokales Versions-Suffix +pi5 an den Changelog anhängen
-    if ! DEBEMAIL="builder@localhost" DEBFULLNAME="KRubus Builder" dch --force-distribution --local +pi5 --distribution "${SUITE}" "Compiled for Raspberry Pi 5 Cortex-A76" < /dev/null >> "$LOG_FILE" 2>&1; then
+    # Lokales Versions-Suffix (+pi5 / +pi5r1) exakt an den Changelog anhängen
+    if ! DEBEMAIL="builder@localhost" DEBFULLNAME="KRubus Builder" dch --force-distribution -v "${TARGET_VER}" --distribution "${SUITE}" "Compiled for Raspberry Pi 5 Cortex-A76" < /dev/null >> "$LOG_FILE" 2>&1; then
       STEP_OK=0
-    else
-      sed -i '1s/+pi51)/+pi5)/' debian/changelog
     fi
   fi
 
