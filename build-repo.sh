@@ -528,10 +528,9 @@ while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
       echo "   📊 Patche ksystemstats für Raspberry Pi 5 (/proc/cpuinfo EOF-Fix, cpu_thermal, SD/MMC Disk-Filter & Broadcom V3D GPU)..."
       python3 "$ROOT_DIR/patches/patch-ksystemstats-pi5.py" .
     elif [[ "$pkg" == "mesa" ]]; then
-      echo "   🎨 Optimiere Mesa für Raspberry Pi 5 (V3D/VC4/Zink/LLVMpipe only – entferne AMD/Intel/Nvidia/Qualcomm/Mali Ballast)..."
+      echo "   🎨 Optimiere Mesa für Raspberry Pi 5 (V3D/VC4/Zink/LLVMpipe only – entferne AMD/Intel/Nvidia/Qualcomm/Mali/Asahi Ballast)..."
       sed -i 's/-Dbuild-tests=true/-Dbuild-tests=false/g' debian/rules || true
-      sed -i 's|^GALLIUM_DRIVERS :=.*|GALLIUM_DRIVERS := '\''softpipe'\'','\''llvmpipe'\'','\''virgl'\'','\''zink'\'','\''vc4'\'','\''v3d'\''|' debian/rules || true
-      sed -i 's|^VULKAN_DRIVERS :=.*|VULKAN_DRIVERS := '\''broadcom'\'','\''swrast'\'','\''virtio'\''|' debian/rules || true
+      sed -i '/^override_dh_auto_configure:/i GALLIUM_DRIVERS = softpipe llvmpipe virgl zink vc4 v3d\nVULKAN_DRIVERS = broadcom swrast virtio' debian/rules || true
       sed -i 's/-Dgallium-rusticl=true/-Dgallium-rusticl=false/g' debian/rules || true
       sed -i 's/-Dteflon=true/-Dteflon=false/g' debian/rules || true
       sed -i 's|mv debian/tmp/usr/lib/\${DEB_HOST_MULTIARCH}/dri/\*_drv_video.so|mv -f debian/tmp/usr/lib/\${DEB_HOST_MULTIARCH}/dri/\*_drv_video.so|g' debian/rules || true

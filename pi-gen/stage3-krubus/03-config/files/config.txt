@@ -19,9 +19,6 @@ camera_auto_detect=1
 display_auto_detect=1
 auto_initramfs=1
 
-[cm4]
-otg_mode=1
-
 # --- Compute Module 5 (CM5) Carrier Integration ---
 [cm5]
 dtoverlay=dwc2,dr_mode=host

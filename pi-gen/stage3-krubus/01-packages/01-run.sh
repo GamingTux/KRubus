@@ -10,9 +10,6 @@ DisplayServer=wayland
 CompositorCommand=kwin_wayland --drm --no-lockscreen --no-global-shortcuts --locale1
 SessionDir=/usr/share/wayland-sessions
 
-[X11]
-SessionDir=/usr/share/xsessions
-
 [Theme]
 Current=breeze
 EOF
@@ -38,30 +35,7 @@ EOF
 install -d -m 755 "${ROOTFS_DIR}/usr/share/plymouth/themes/krubus"
 install -m 644 files/plymouth/krubus/* "${ROOTFS_DIR}/usr/share/plymouth/themes/krubus/"
 
-# 2. Xwayland / X11 Fallback GPU & Touchpad Defaults
-install -d -m 755 "${ROOTFS_DIR}/etc/X11/xorg.conf.d" "${ROOTFS_DIR}/usr/share/X11/xorg.conf.d"
-cat << 'EOF' > "${ROOTFS_DIR}/etc/X11/xorg.conf.d/99-v3d.conf"
-Section "OutputClass"
-  Identifier "vc4"
-  MatchDriver "vc4"
-  Driver "modesetting"
-  Option "PrimaryGPU" "true"
-EndSection
-EOF
-cp "${ROOTFS_DIR}/etc/X11/xorg.conf.d/99-v3d.conf" "${ROOTFS_DIR}/usr/share/X11/xorg.conf.d/99-v3d.conf"
-
-cat << 'EOF' > "${ROOTFS_DIR}/etc/X11/xorg.conf.d/40-libinput-touchpad.conf"
-Section "InputClass"
-  Identifier "libinput touchpad catchall"
-  MatchIsTouchpad "on"
-  MatchDevicePath "/dev/input/event*"
-  Driver "libinput"
-  Option "Tapping" "on"
-  Option "ClickMethod" "clickfinger"
-EndSection
-EOF
-
-# 3. KDE Plasma 6 Performance, Baloo Flash Protection & Desktop Polish
+# 2. KDE Plasma 6 Performance, Baloo Flash Protection & Desktop Polish
 install -d -m 755 "${ROOTFS_DIR}/etc/xdg" "${ROOTFS_DIR}/etc/xdg/menus" "${ROOTFS_DIR}/etc/xdg/ddcutil" "${ROOTFS_DIR}/etc/xdg/xdg-desktop-portal"
 
 cat << 'EOF' > "${ROOTFS_DIR}/etc/xdg/baloofilerc"
@@ -104,8 +78,7 @@ cat << 'EOF' > "${ROOTFS_DIR}/etc/xdg/kuprc"
 Backups enabled=false
 EOF
 
-for KDEDRC in "${ROOTFS_DIR}/etc/xdg/kded5rc" "${ROOTFS_DIR}/etc/xdg/kded6rc"; do
-	cat << 'EOF' > "$KDEDRC"
+cat << 'EOF' > "${ROOTFS_DIR}/etc/xdg/kded6rc"
 [Module-kded_bolt]
 autoload=false
 
@@ -115,7 +88,6 @@ autoload=false
 [Module-donationmessage]
 autoload=false
 EOF
-done
 
 cat << 'EOF' > "${ROOTFS_DIR}/etc/xdg/plasma-nm"
 [General]
@@ -135,10 +107,18 @@ fi
 rm -f "${ROOTFS_DIR}/etc/systemd/user/sockets.target.upholds/drkonqi-coredump-launcher.socket"
 sed -i 's/^UpheldBy=sockets.target/#UpheldBy=sockets.target/' "${ROOTFS_DIR}/usr/lib/systemd/user/drkonqi-coredump-launcher.socket" 2>/dev/null || true
 
-# Ensure /run/utmp for sddm-helper & suppress pam_sss smartcard error spam
+# Ensure /run/utmp for sddm-helper, MGLRU working-set protection, 0.5 ms schedutil & suppress pam_sss spam
 install -d -m 755 "${ROOTFS_DIR}/etc/tmpfiles.d" "${ROOTFS_DIR}/etc/pam.d"
 cat << 'EOF' > "${ROOTFS_DIR}/etc/tmpfiles.d/legacy-utmp.conf"
 f /run/utmp 0664 root utmp -
+EOF
+
+cat << 'EOF' > "${ROOTFS_DIR}/etc/tmpfiles.d/99-krubus-pi5-tuning.conf"
+# MGLRU Working-Set Protection (1000 ms floor prevents streaming I/O from evicting active UI/app pages)
+w- /sys/kernel/mm/lru_gen/enabled - - - - 0x0007
+w- /sys/kernel/mm/lru_gen/min_ttl_ms - - - - 1000
+# Responsive Cortex-A76 frequency ramp-up (0.5 ms instead of 1.0 ms default)
+w- /sys/devices/system/cpu/cpufreq/schedutil/rate_limit_us - - - - 500
 EOF
 
 cat << 'EOF' > "${ROOTFS_DIR}/etc/pam.d/kde-smartcard"
@@ -282,7 +262,10 @@ EOF
 
 # 4. CPU Governor, Kernel VM, Btrfs Cache, Storage I/O Schedulers, IRQ Affinity & TCP BBR
 install -d -m 755 "${ROOTFS_DIR}/etc/udev/rules.d" "${ROOTFS_DIR}/etc/modules-load.d" "${ROOTFS_DIR}/etc/sysctl.d"
-echo 'KERNEL=="cpu*", SUBSYSTEM=="cpu", ATTR{cpufreq/scaling_governor}="schedutil"' > "${ROOTFS_DIR}/etc/udev/rules.d/60-ondemand-governor.rules"
+cat << 'EOF' > "${ROOTFS_DIR}/etc/udev/rules.d/60-ondemand-governor.rules"
+KERNEL=="cpu*", SUBSYSTEM=="cpu", ATTR{cpufreq/scaling_governor}="schedutil"
+KERNEL=="cpu0", SUBSYSTEM=="cpu", RUN+="/bin/sh -c 'echo 500 > /sys/devices/system/cpu/cpufreq/schedutil/rate_limit_us 2>/dev/null || true'"
+EOF
 rm -f "${ROOTFS_DIR}/etc/udev/rules.d/60-readahead.rules"
 
 echo "tcp_bbr" > "${ROOTFS_DIR}/etc/modules-load.d/bbr.conf"
@@ -303,6 +286,11 @@ EOF
 
 cat << 'EOF' > "${ROOTFS_DIR}/usr/sbin/krubus-runtime-tune"
 #!/bin/sh
+# Ensure 0.5 ms Cortex-A76 schedutil ramp-up & MGLRU 1000 ms working-set protection
+[ -w /sys/devices/system/cpu/cpufreq/schedutil/rate_limit_us ] && echo 500 > /sys/devices/system/cpu/cpufreq/schedutil/rate_limit_us 2>/dev/null || true
+[ -w /sys/kernel/mm/lru_gen/enabled ] && echo 0x0007 > /sys/kernel/mm/lru_gen/enabled 2>/dev/null || true
+[ -w /sys/kernel/mm/lru_gen/min_ttl_ms ] && echo 1000 > /sys/kernel/mm/lru_gen/min_ttl_ms 2>/dev/null || true
+
 # Spread heavy ARM64 GICv2 Level IRQs across CPU0..CPU3
 for irq_dir in /proc/irq/[0-9]*; do
     [ -d "$irq_dir" ] || continue
@@ -581,7 +569,19 @@ on_chroot <<- \EOF
 	chmod 600 /var/lib/sddm/.config/kwinrc
 
 	flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
-	apt-get purge -y irqbalance xserver-xorg-video-fbdev xdg-desktop-portal-wlr xwaylandvideobridge 2>/dev/null || true
+
+	PURGE_LIST=""
+	for pkg in irqbalance xserver-xorg-core xserver-xorg xserver-xorg-legacy xserver-xorg-video-fbdev kwin-x11 xdg-desktop-portal-wlr xwaylandvideobridge konqueror konqueror-data plasma-vault cryfs kup-backup bup modemmanager ppp kde-style-breeze-qt5 plasma5-integration kwayland-integration pocketsphinx-en-us libflite1 fbset ed wireless-tools net-tools mkvtoolnix build-essential manpages-dev pkg-config pkgconf lua5.1 luajit linux-headers-rpi-2712 linux-headers-rpi-v8; do
+		if dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"; then
+			PURGE_LIST="$PURGE_LIST $pkg"
+		fi
+	done
+	if [ -n "$PURGE_LIST" ]; then
+		apt-get purge -y $PURGE_LIST || true
+	fi
+	apt-get autoremove -y --purge || true
+	rm -f /boot/firmware/bootcode.bin /boot/firmware/start* /boot/firmware/fixup* /boot/firmware/bcm2710-*.dtb /boot/firmware/bcm2711-*.dtb /boot/firmware/bcm2837-*.dtb
+	rm -rf /etc/X11/xorg.conf.d /usr/share/xsessions
 
 	# Disable heavy/redundant XDG autostarts (Konqueror 171 MB QtWebEngine preload, Kup backup daemon)
 	for autostart_f in /etc/xdg/autostart/konqy_preload.desktop /etc/xdg/autostart/kup-daemon.desktop /etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop; do

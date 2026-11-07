@@ -14,7 +14,7 @@ if [ -f "${ROOTFS_DIR}/boot/firmware/cmdline.txt" ]; then
 	sed -i 's/fsck.repair=yes/fsck.repair=no/g' "${ROOTFS_DIR}/boot/firmware/cmdline.txt"
 	sed -i 's/\bresize\b//g; s/[[:space:]]*$//' "${ROOTFS_DIR}/boot/firmware/cmdline.txt"
 	if ! grep -q "cgroup_enable=memory" "${ROOTFS_DIR}/boot/firmware/cmdline.txt"; then
-		sed -i 's/$/ cgroup_enable=memory psi=1/' "${ROOTFS_DIR}/boot/firmware/cmdline.txt"
+		sed -i 's/$/ cgroup_enable=memory psi=1 nvme_core.default_ps_max_latency_us=5500/' "${ROOTFS_DIR}/boot/firmware/cmdline.txt"
 	fi
 	if ! grep -q "splash" "${ROOTFS_DIR}/boot/firmware/cmdline.txt"; then
 		sed -i 's/$/ quiet splash plymouth.ignore-serial-consoles vt.global_cursor_default=0 loglevel=3 systemd.show_status=auto rd.udev.log_level=3/' "${ROOTFS_DIR}/boot/firmware/cmdline.txt"
