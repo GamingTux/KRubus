@@ -104,15 +104,6 @@ if mod:
             systemctl restart systemd-zram-setup@zram0.service >/dev/null 2>&1 || true
         fi
     fi
-    # 9. Clean up legacy ext4 e2scrub cronjob & disable redundant sshswitch boot service
-    rm -f /etc/cron.d/e2scrub_all
-    systemctl disable sshswitch.service 2>/dev/null || true
-
-    # 10. Stop and disable redundant serial-getty if serial console is not on cmdline
-    if ! grep -q "console=serial0" /proc/cmdline 2>/dev/null; then
-        systemctl stop serial-getty@ttyAMA10.service 2>/dev/null || true
-        systemctl disable serial-getty@ttyAMA10.service 2>/dev/null || true
-    fi
 fi
 
 exit 0
