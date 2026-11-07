@@ -1,3 +1,4 @@
 wpasupplicant iw firmware-atheros firmware-brcm80211 firmware-libertas firmware-realtek firmware-mediatek firmware-marvell-prestera-
 raspberrypi-net-mods
 network-manager
+net-tools

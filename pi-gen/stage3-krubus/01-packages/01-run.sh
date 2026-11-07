@@ -571,7 +571,7 @@ on_chroot <<- \EOF
 	flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
 
 	PURGE_LIST=""
-	for pkg in irqbalance xserver-xorg-core xserver-xorg xserver-xorg-legacy xserver-xorg-video-fbdev kwin-x11 xdg-desktop-portal-wlr xwaylandvideobridge konqueror konqueror-data plasma-vault cryfs kup-backup bup modemmanager ppp kde-style-breeze-qt5 plasma5-integration kwayland-integration pocketsphinx-en-us libflite1 fbset ed wireless-tools net-tools mkvtoolnix build-essential manpages-dev pkg-config pkgconf lua5.1 luajit linux-headers-rpi-2712 linux-headers-rpi-v8; do
+	for pkg in irqbalance xserver-xorg-core xserver-xorg xserver-xorg-legacy xserver-xorg-video-fbdev kwin-x11 xdg-desktop-portal-wlr xwaylandvideobridge konqueror konqueror-data plasma-vault cryfs kup-backup bup modemmanager ppp kde-style-breeze-qt5 plasma5-integration kwayland-integration fbset ed wireless-tools mkvtoolnix build-essential manpages-dev pkg-config pkgconf lua5.1 luajit linux-headers-rpi-2712 linux-headers-rpi-v8; do
 		if dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"; then
 			PURGE_LIST="$PURGE_LIST $pkg"
 		fi
