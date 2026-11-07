@@ -9,6 +9,7 @@ cat << 'JCONF' > "${ROOTFS_DIR}/etc/systemd/journald.conf.d/99-persistent.conf"
 Storage=persistent
 SystemMaxUse=100M
 RuntimeMaxUse=50M
+ForwardToSyslog=no
 JCONF
 install -d -m 2755 "${ROOTFS_DIR}/var/log/journal"
 

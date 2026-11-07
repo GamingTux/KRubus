@@ -278,8 +278,15 @@ vm.vfs_cache_pressure = 50
 vm.dirty_background_ratio = 5
 vm.dirty_ratio = 10
 fs.inotify.max_user_watches = 524288
+fs.inotify.max_user_instances = 512
 net.core.default_qdisc = fq
 net.core.rps_sock_flow_entries = 32768
+net.core.netdev_max_backlog = 5000
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.ipv4.tcp_rmem = 4096 87380 16777216
+net.ipv4.tcp_wmem = 4096 65536 16777216
+net.ipv4.tcp_slow_start_after_idle = 0
 net.ipv4.tcp_congestion_control = bbr
 net.ipv4.tcp_fastopen = 3
 EOF
@@ -556,11 +563,12 @@ if [ -f "${ROOTFS_DIR}/etc/sane.d/airscan.conf" ] && ! grep -q "ws-discovery = f
 	sed -i '/^\[options\]/a discovery = enable\nws-discovery = fast' "${ROOTFS_DIR}/etc/sane.d/airscan.conf"
 fi
 
-# 8. PipeWire Quantum Floor & Prevent System User (SDDM) Audio Hijacking
+# 8. PipeWire Quantum Floor, Native Sample Rates & Prevent System User (SDDM) Audio Hijacking
 install -d -m 755 "${ROOTFS_DIR}/etc/pipewire/pipewire.conf.d"
 cat << 'EOF' > "${ROOTFS_DIR}/etc/pipewire/pipewire.conf.d/99-krubus.conf"
 context.properties = {
     default.clock.min-quantum = 512
+    default.clock.allowed-rates = [ 44100 48000 88200 96000 ]
 }
 EOF
 
@@ -652,7 +660,7 @@ on_chroot <<- \EOF
 		fi
 	done
 
-	# Dynamic ZRAM (no disk swap wear, ultra-low-latency lzo-rle)
+	# Dynamic ZRAM (no disk swap wear, ultra-low-latency zstd)
 	install -d -m 755 /etc/rpi /etc/systemd
 	cat <<- 'SWAPCONF' > /etc/rpi/swap.conf
 	[Main]
@@ -660,7 +668,7 @@ on_chroot <<- \EOF
 
 	[Zram]
 	RamMultiplier=1
-	MaxSizeMiB=4096
+	MaxSizeMiB=8192
 
 	[File]
 	MaxSizeMiB=0
@@ -668,9 +676,15 @@ on_chroot <<- \EOF
 
 	cat <<- 'ZRAMCONF' > /etc/systemd/zram-generator.conf
 	[zram0]
-	compression-algorithm = lzo-rle
+	zram-size = min(ram, 8192)
+	compression-algorithm = zstd
 	ZRAMCONF
 	rm -f /var/swap
+
+	# EarlyOOM: protect KDE Plasma Wayland session, SDDM, systemd & PipeWire from being killed
+	cat <<- 'EARLYOOMCONF' > /etc/default/earlyoom
+	EARLYOOM_ARGS="-m 4 -s 15 --avoid '(^|/)(kwin_wayland|plasmashell|sddm|systemd|dbus-daemon|pipewire|wireplumber)$' -r 3600"
+	EARLYOOMCONF
 
 	# Fast shutdown/reboot timeouts & Wayland environment variables
 	install -d -m 755 /etc/systemd/system.conf.d /etc/systemd/user.conf.d /etc/systemd/system/user@.service.d
@@ -700,6 +714,9 @@ on_chroot <<- \EOF
 	fi
 	if ! grep -q "MOZ_X11_EGL" /etc/environment 2>/dev/null; then
 		echo 'MOZ_X11_EGL=1' >> /etc/environment
+	fi
+	if ! grep -q "MESA_DISK_CACHE_SINGLE_FILE" /etc/environment 2>/dev/null; then
+		echo 'MESA_DISK_CACHE_SINGLE_FILE=1' >> /etc/environment
 	fi
 
 	# Pre-generate standard European locales so First-Boot language switch is instantaneous
