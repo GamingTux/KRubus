@@ -236,6 +236,7 @@ for kg in ["etc/xdg/kdeglobals", "etc/skel/.config/kdeglobals"]:
         cp.set("KDE", "AnimationDurationFactor", "0.5")
         if not cp.has_section("General"):
             cp.add_section("General")
+        cp.set("General", "ColorScheme", "KRubusDark")
         cp.set("General", "XftSubPixel", "rgb")
         cp.set("General", "XftHintStyle", "hintslight")
         with open(kg_path, "w", encoding="utf-8") as f:
@@ -243,12 +244,18 @@ for kg in ["etc/xdg/kdeglobals", "etc/skel/.config/kdeglobals"]:
     except Exception:
         pass
 
-# 4. Pin Firefox, Dolphin & Konsole in default Plasma panel
+# 4. Pin Firefox, Dolphin & Konsole and set KRubus branding in default Plasma panel
 layout_js = rpath("usr/share/plasma/layout-templates/org.kde.plasma.desktop.defaultPanel/contents/layout.js")
 if os.path.isfile(layout_js):
     try:
         with open(layout_js, "r", encoding="utf-8") as f:
             ljs = f.read()
+        target_kickoff = 'panel.addWidget("org.kde.plasma.kickoff")'
+        if target_kickoff in ljs and "kickoff.writeConfig" not in ljs:
+            replacement_kickoff = """var kickoff = panel.addWidget("org.kde.plasma.kickoff");
+kickoff.currentConfigGroup = ["General"];
+kickoff.writeConfig("icon", "krubus");"""
+            ljs = ljs.replace(target_kickoff, replacement_kickoff, 1)
         ff_desktop = "firefox.desktop" if os.path.isfile(rpath("usr/share/applications/firefox.desktop")) else "firefox-esr.desktop"
         target_tasks = 'panel.addWidget("org.kde.plasma.icontasks")'
         if target_tasks in ljs and "tasks.writeConfig" not in ljs:
@@ -260,8 +267,8 @@ tasks.writeConfig("launchers", [
     "applications:org.kde.konsole.desktop"
 ]);"""
             ljs = ljs.replace(target_tasks, replacement_tasks, 1)
-            with open(layout_js, "w", encoding="utf-8") as f:
-                f.write(ljs)
+        with open(layout_js, "w", encoding="utf-8") as f:
+            f.write(ljs)
     except Exception:
         pass
 EOF

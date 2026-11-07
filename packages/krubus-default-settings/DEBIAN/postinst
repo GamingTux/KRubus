@@ -14,18 +14,44 @@ if ! ischroot 2>/dev/null; then
         /etc/xdg/powerdevilrc \
         /etc/firefox/policies/policies.json \
         /etc/firefox-esr/policies/policies.json \
+        /etc/xdg/kdeglobals \
+        /etc/skel/.config/kdeglobals \
         /etc/systemd/user/plasma-powerdevil.service.d/override.conf; do
         if [ -f "${cfg}.dpkg-dist" ]; then
             mv -f "${cfg}.dpkg-dist" "$cfg"
         fi
     done
 
-    # Ensure existing user sessions default to balanced power profile
+    # Update system icon cache for new krubus icons
+    gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
+
+    # Ensure existing user sessions default to balanced power profile & krubus launcher icon
     for homedir in /home/*; do
         [ -d "$homedir" ] || continue
         pdf="$homedir/.config/powerdevilrc"
         if [ -f "$pdf" ] && grep -q "PowerProfile=power-saver" "$pdf"; then
             sed -i 's/PowerProfile=power-saver/PowerProfile=balanced/g' "$pdf"
+        fi
+        appsrc="$homedir/.config/plasma-org.kde.plasma.desktop-appletsrc"
+        if [ -f "$appsrc" ] && grep -q "plugin=org.kde.plasma.kickoff" "$appsrc"; then
+            python3 -c "
+import configparser
+cp = configparser.ConfigParser(interpolation=None)
+cp.optionxform = str
+cp.read('$appsrc')
+mod = False
+for s in cp.sections():
+    if cp.has_option(s, 'plugin') and cp.get(s, 'plugin') == 'org.kde.plasma.kickoff':
+        cg = s + '[Configuration][General]'
+        if not cp.has_section(cg):
+            cp.add_section(cg)
+        if not cp.has_option(cg, 'icon') or cp.get(cg, 'icon') in ['', 'start-here-kde']:
+            cp.set(cg, 'icon', 'krubus')
+            mod = True
+if mod:
+    with open('$appsrc', 'w') as f:
+        cp.write(f)
+" 2>/dev/null || true
         fi
     done
 
@@ -64,6 +90,10 @@ if ! ischroot 2>/dev/null; then
             XDG_RUNTIME_DIR="$uid_dir" \
             DBUS_SESSION_BUS_ADDRESS="unix:path=$bus_sock" \
             busctl --user call org.kde.Solid.PowerManagement /org/kde/Solid/PowerManagement org.kde.Solid.PowerManagement loadProfile b true >/dev/null 2>&1 || true
+        runuser -u "$uname" -- env \
+            XDG_RUNTIME_DIR="$uid_dir" \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=$bus_sock" \
+            plasma-apply-colorscheme KRubusDark >/dev/null 2>&1 || true
     done
 
     # 8. Reload ZRAM to activate zstd algorithm and new scaling (if swap is unused)

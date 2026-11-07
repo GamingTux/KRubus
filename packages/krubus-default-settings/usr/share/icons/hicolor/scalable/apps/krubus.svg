@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="krGrad" x1="110" y1="96" x2="400" y2="416" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e30b5d"/>
+      <stop offset="0.5" stop-color="#8b45c9"/>
+      <stop offset="1" stop-color="#1d99f3"/>
+    </linearGradient>
+    <mask id="piCut" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <rect width="512" height="512" fill="#fff"/>
+      <g fill="none" stroke="#000" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M196,178 Q202,164 220,164 H332"/>
+        <path d="M246,170 C246,214 242,240 226,260"/>
+        <path d="M298,170 V234 C298,252 310,260 324,252"/>
+      </g>
+    </mask>
+  </defs>
+
+  <!-- R with pi cut out of the bowl (Transparent Vector) -->
+  <g fill="url(#krGrad)" stroke="url(#krGrad)" stroke-width="8" stroke-linejoin="round" mask="url(#piCut)">
+    <rect x="136" y="96" width="80" height="320"/>
+    <path d="M136,96 H268 A112,112 0 0 1 268,320 H136 Z"/>
+    <path d="M228,296 H314 L404,416 H310 Z"/>
+  </g>
+</svg>

@@ -15,3 +15,5 @@
 /etc/xdg/powerdevilrc
 /etc/firefox/policies/policies.json
 /etc/firefox-esr/policies/policies.json
+/etc/xdg/kdeglobals
+/etc/skel/.config/kdeglobals
