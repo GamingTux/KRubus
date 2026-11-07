@@ -341,7 +341,50 @@ ACTION=="add", SUBSYSTEM=="drm", KERNEL=="card0", RUN+="/usr/sbin/krubus-runtime
 EOF
 
 # Slim initramfs: strip 14 MB udev vendor text database & NTFS helper from initramfs image
-install -d -m 755 "${ROOTFS_DIR}/etc/initramfs-tools/hooks"
+install -d -m 755 "${ROOTFS_DIR}/etc/initramfs-tools/hooks" "${ROOTFS_DIR}/etc/kernel/postinst.d" "${ROOTFS_DIR}/etc/initramfs/post-update.d"
+cat << 'EOF' > "${ROOTFS_DIR}/etc/kernel/postinst.d/zz-krubus-kernel"
+#!/bin/sh
+# Guarantee /boot/firmware always boots the active linux-image-rpi-2712 / rpi-v8 metapackage target
+# (works around z50-raspi-firmware GNU sort -V treating '+rpt-' > '+rpt+1-')
+set -e
+
+case "${DEB_MAINT_PARAMS:-configure}" in
+	*configure*|"" ) ;;
+	* ) exit 0 ;;
+esac
+
+FW="/boot/firmware"
+[ -d "$FW" ] || exit 0
+if ! ischroot 2>/dev/null && [ -x /usr/bin/systemd-detect-virt ] && ! systemd-detect-virt -q; then
+	mountpoint -q "$FW" || exit 0
+fi
+
+sync_flavour() {
+	meta="$1"
+	kdst="$2"
+	idst="$3"
+	dep="$(dpkg-query -W -f='${Depends}\n' "$meta" 2>/dev/null | tr ',' '\n' | sed -n 's/^[[:space:]]*\(linux-image-[0-9][^ (]*\).*/\1/p' | head -n 1)"
+	[ -n "$dep" ] || return 0
+	kver="${dep#linux-image-}"
+	if [ -f "/boot/vmlinuz-${kver}" ] && ! cmp -s "/boot/vmlinuz-${kver}" "${FW}/${kdst}"; then
+		cp -f "/boot/vmlinuz-${kver}" "${FW}/${kdst}"
+		dtb_dir="/usr/lib/linux-image-${kver}/broadcom"
+		ovl_dir="/usr/lib/linux-image-${kver}/overlays"
+		[ -d "$dtb_dir" ] && rsync -ct "${dtb_dir}"/bcm2712*.dtb "${FW}/" 2>/dev/null || true
+		[ -d "$ovl_dir" ] && mkdir -p "${FW}/overlays" && rsync -ct "${ovl_dir}"/*.dtb* "${ovl_dir}"/README "${FW}/overlays/" 2>/dev/null || true
+	fi
+	if [ -f "/boot/initrd.img-${kver}" ] && ! cmp -s "/boot/initrd.img-${kver}" "${FW}/${idst}"; then
+		cp -f "/boot/initrd.img-${kver}" "${FW}/${idst}"
+	fi
+}
+
+sync_flavour "linux-image-rpi-2712" "kernel_2712.img" "initramfs_2712"
+sync_flavour "linux-image-rpi-v8" "kernel8.img" "initramfs8"
+sync -f "$FW" 2>/dev/null || true
+EOF
+chmod 755 "${ROOTFS_DIR}/etc/kernel/postinst.d/zz-krubus-kernel"
+cp -f "${ROOTFS_DIR}/etc/kernel/postinst.d/zz-krubus-kernel" "${ROOTFS_DIR}/etc/initramfs/post-update.d/zz-krubus-kernel"
+chmod 755 "${ROOTFS_DIR}/etc/initramfs/post-update.d/zz-krubus-kernel"
 cat << 'EOF' > "${ROOTFS_DIR}/etc/initramfs-tools/hooks/zz-krubus-slim"
 #!/bin/sh
 PREREQ="udev plymouth"
@@ -580,6 +623,17 @@ on_chroot <<- \EOF
 		apt-get purge -y $PURGE_LIST || true
 	fi
 	apt-get autoremove -y --purge || true
+
+	# Ensure only the active +pi5 target kernels remain installed and synced to /boot/firmware
+	ACTIVE_K2712="$(dpkg-query -W -f='${Depends}\n' linux-image-rpi-2712 2>/dev/null | tr ',' '\n' | sed -n 's/^[[:space:]]*\(linux-image-[0-9][^ (]*\).*/\1/p' | head -n 1)"
+	ACTIVE_KV8="$(dpkg-query -W -f='${Depends}\n' linux-image-rpi-v8 2>/dev/null | tr ',' '\n' | sed -n 's/^[[:space:]]*\(linux-image-[0-9][^ (]*\).*/\1/p' | head -n 1)"
+	for kpkg in $(dpkg-query -W -f='${Package}\n' 'linux-image-[0-9]*' 2>/dev/null || true); do
+		if [ "$kpkg" != "$ACTIVE_K2712" ] && [ "$kpkg" != "$ACTIVE_KV8" ]; then
+			apt-get purge -y "$kpkg" || true
+			rm -rf "/usr/lib/modules/${kpkg#linux-image-}" "/usr/lib/linux-image-${kpkg#linux-image-}"
+		fi
+	done
+	/etc/kernel/postinst.d/zz-krubus-kernel || true
 	rm -f /boot/firmware/bootcode.bin /boot/firmware/start* /boot/firmware/fixup* /boot/firmware/bcm2710-*.dtb /boot/firmware/bcm2711-*.dtb /boot/firmware/bcm2837-*.dtb
 	rm -rf /etc/X11/xorg.conf.d /usr/share/xsessions
 

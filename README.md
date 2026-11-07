@@ -41,6 +41,7 @@ Pin-Priority: 1001
 EOF
 
 sudo apt update && sudo apt full-upgrade
+sudo apt install -y krubus-kernel-hook
 ```
 
 ---
