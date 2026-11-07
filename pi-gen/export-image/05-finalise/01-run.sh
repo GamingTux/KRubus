@@ -10,6 +10,11 @@ if [ -f "${ROOTFS_DIR}/etc/initramfs-tools/update-initramfs.conf" ]; then
 	sed -i 's/^update_initramfs=.*/update_initramfs=yes/' "${ROOTFS_DIR}/etc/initramfs-tools/update-initramfs.conf"
 	sed -i 's/^MODULES=.*/MODULES=most/' "${ROOTFS_DIR}/etc/initramfs-tools/initramfs.conf"
 	sed -i 's/^COMPRESS=.*/COMPRESS=zstd/' "${ROOTFS_DIR}/etc/initramfs-tools/initramfs.conf"
+	if grep -q '^#*COMPRESSLEVEL=' "${ROOTFS_DIR}/etc/initramfs-tools/initramfs.conf"; then
+		sed -i 's/^#*COMPRESSLEVEL=.*/COMPRESSLEVEL=3/' "${ROOTFS_DIR}/etc/initramfs-tools/initramfs.conf"
+	else
+		echo 'COMPRESSLEVEL=3' >> "${ROOTFS_DIR}/etc/initramfs-tools/initramfs.conf"
+	fi
 fi
 
 on_chroot <<- EOF

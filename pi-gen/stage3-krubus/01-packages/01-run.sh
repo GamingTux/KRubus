@@ -62,14 +62,28 @@ EndSection
 EOF
 
 # 3. KDE Plasma 6 Performance, Baloo Flash Protection & Desktop Polish
-install -d -m 755 "${ROOTFS_DIR}/etc/xdg" "${ROOTFS_DIR}/etc/xdg/menus" "${ROOTFS_DIR}/etc/xdg/ddcutil"
+install -d -m 755 "${ROOTFS_DIR}/etc/xdg" "${ROOTFS_DIR}/etc/xdg/menus" "${ROOTFS_DIR}/etc/xdg/ddcutil" "${ROOTFS_DIR}/etc/xdg/xdg-desktop-portal"
 
 cat << 'EOF' > "${ROOTFS_DIR}/etc/xdg/baloofilerc"
 [Basic Settings]
-Indexing-Enabled=true
+Indexing-Enabled=false
 
 [General]
 only basic indexing=true
+EOF
+
+cat << 'EOF' > "${ROOTFS_DIR}/etc/xdg/ksplashrc"
+[KSplash]
+Engine=none
+Theme=None
+EOF
+
+cat << 'EOF' > "${ROOTFS_DIR}/etc/xdg/xdg-desktop-portal/kde-portals.conf"
+[preferred]
+default=kde
+org.freedesktop.impl.portal.Settings=kde
+org.freedesktop.impl.portal.Secret=kwallet
+org.freedesktop.impl.portal.Lockdown=none
 EOF
 
 cat << 'EOF' > "${ROOTFS_DIR}/etc/xdg/plasma-localerc"
@@ -314,6 +328,13 @@ done
 EOF
 chmod 755 "${ROOTFS_DIR}/usr/sbin/krubus-runtime-tune"
 
+cat << 'EOF' > "${ROOTFS_DIR}/etc/udev/rules.d/68-krubus-no-mtp-probe.rules"
+# Skip slow 3s mtp-probe on USB root hubs, mass storage (SD readers/flash drives), HID, video & BT
+# Known Android/MTP phones already carry ID_MTP_DEVICE=="1" via udev hwdb!
+ACTION=="add|bind", SUBSYSTEM=="usb", ATTR{idVendor}=="1d6b", ENV{MTP_NO_PROBE}="1"
+ACTION=="add|bind", SUBSYSTEM=="usb", ENV{ID_MTP_DEVICE}!="1", ENV{ID_USB_INTERFACES}=="*:08*:*|*:03*:*|*:09*:*|*:0e*:*|*:e0*:*", ENV{MTP_NO_PROBE}="1"
+EOF
+
 cat << 'EOF' > "${ROOTFS_DIR}/etc/udev/rules.d/90-krubus-runtime.rules"
 # Optimal I/O Scheduler, Read-Ahead & Core Queue Affinity for NVMe SSDs, eMMC/SD & USB storage
 ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="nvme[0-9]*n[0-9]*", ATTR{queue/scheduler}="none", ATTR{queue/read_ahead_kb}="512", ATTR{queue/rq_affinity}="2"
@@ -321,11 +342,47 @@ ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="mmcblk[
 ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="sd[a-z]*", ATTR{queue/rotational}=="1", ATTR{queue/scheduler}="bfq", ATTR{queue/rq_affinity}="2"
 ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="sd[a-z]*", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="mq-deadline", ATTR{queue/read_ahead_kb}="256", ATTR{queue/rq_affinity}="2"
 
+# Start ModemManager on-demand ONLY when a real USB WWAN/4G/5G modem is plugged in
+ACTION=="add", SUBSYSTEM=="usbmisc|tty|net", ENV{ID_USB_DRIVERS}=="qmi_wwan|cdc_mbim|option|huawei_cdc_ncm", TAG+="systemd", ENV{SYSTEMD_WANTS}+="ModemManager.service"
+
 # 4-Core Receive Packet Steering (RPS/RFS) on network interfaces
 ACTION=="add", SUBSYSTEM=="net", KERNEL=="wlan*|eth*", ATTR{queues/rx-0/rps_cpus}="f", ATTR{queues/rx-0/rps_flow_cnt}="4096"
 
 # Runtime IRQ tuning on DRM init
 ACTION=="add", SUBSYSTEM=="drm", KERNEL=="card0", RUN+="/usr/sbin/krubus-runtime-tune"
+EOF
+
+# Slim initramfs: strip 14 MB udev vendor text database & NTFS helper from initramfs image
+install -d -m 755 "${ROOTFS_DIR}/etc/initramfs-tools/hooks"
+cat << 'EOF' > "${ROOTFS_DIR}/etc/initramfs-tools/hooks/zz-krubus-slim"
+#!/bin/sh
+PREREQ="udev plymouth"
+case "$1" in
+    prereqs) echo "$PREREQ"; exit 0 ;;
+esac
+rm -f "${DESTDIR}/usr/lib/udev/hwdb.bin" "${DESTDIR}/lib/udev/hwdb.bin"
+rm -f "${DESTDIR}"/usr/lib/*/libntfs-3g.so* "${DESTDIR}/usr/bin/ntfs-3g"
+exit 0
+EOF
+chmod 755 "${ROOTFS_DIR}/etc/initramfs-tools/hooks/zz-krubus-slim"
+
+# Defer SPI EEPROM update check to 90s after boot & run smartmontools only when NVMe is present
+install -d -m 755 "${ROOTFS_DIR}/etc/systemd/system" "${ROOTFS_DIR}/etc/systemd/system/smartmontools.service.d"
+cat << 'EOF' > "${ROOTFS_DIR}/etc/systemd/system/rpi-eeprom-update.timer"
+[Unit]
+Description=Deferred Raspberry Pi EEPROM Update Check
+
+[Timer]
+OnBootSec=90s
+Unit=rpi-eeprom-update.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+cat << 'EOF' > "${ROOTFS_DIR}/etc/systemd/system/smartmontools.service.d/nvme-only.conf"
+[Unit]
+ConditionPathExistsGlob=/dev/nvme*
 EOF
 
 # 5. Firefox Wayland Zero-Copy DMABUF, V3D WebRender, Flash-Safe RAM Cache & Widevine DRM
@@ -503,17 +560,35 @@ on_chroot <<- \EOF
 		[ -f "$net_helper" ] && setcap cap_net_raw=ep "$net_helper" || true
 	done
 
-	# Disable kwin_screencast inside SDDM Wayland Greeter (prevents +10.5s PipeWire timeout freeze)
-	install -d -m 700 -o sddm -g sddm /var/lib/sddm/.config
+	# Slim KWin Wayland profile inside SDDM Greeter (disable all unneeded desktop plugins & prep cache)
+	install -d -m 700 -o sddm -g sddm /var/lib/sddm/.config /var/lib/sddm/.cache
 	cat <<- 'SDDMKWIN' > /var/lib/sddm/.config/kwinrc
+	[Compositing]
+	LatencyPolicy=low
+
 	[Plugins]
+	BounceKeysPluginEnabled=false
+	KeyNotificationPluginEnabled=false
+	MouseKeysPluginEnabled=false
+	StickyKeysPluginEnabled=false
+	buttonsrebindEnabled=false
+	eisEnabled=false
+	krunnerintegrationEnabled=false
+	nightlightEnabled=false
 	screencastEnabled=false
 	SDDMKWIN
-	chown -R sddm:sddm /var/lib/sddm/.config
+	chown -R sddm:sddm /var/lib/sddm/.config /var/lib/sddm/.cache
 	chmod 600 /var/lib/sddm/.config/kwinrc
 
 	flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
-	apt-get purge -y irqbalance xserver-xorg-video-fbdev 2>/dev/null || true
+	apt-get purge -y irqbalance xserver-xorg-video-fbdev xdg-desktop-portal-wlr xwaylandvideobridge 2>/dev/null || true
+
+	# Disable heavy/redundant XDG autostarts (Konqueror 171 MB QtWebEngine preload, Kup backup daemon)
+	for autostart_f in /etc/xdg/autostart/konqy_preload.desktop /etc/xdg/autostart/kup-daemon.desktop /etc/xdg/autostart/org.kde.xwaylandvideobridge.desktop; do
+		if [ -f "$autostart_f" ] && ! grep -q '^Hidden=true' "$autostart_f"; then
+			printf '\nHidden=true\n' >> "$autostart_f"
+		fi
+	done
 
 	# Dynamic ZRAM (no disk swap wear, ultra-low-latency lzo-rle)
 	install -d -m 755 /etc/rpi /etc/systemd
@@ -600,6 +675,14 @@ on_chroot <<- \EOF
 	install -d -m 755 /etc/systemd/system-preset
 	cat <<- 'EOF_PRESET' > /etc/systemd/system-preset/00-krubus.preset
 	enable sddm.service
+	enable rpi-eeprom-update.timer
+	enable cups.socket
+	disable rpi-eeprom-update.service
+	disable cups.service
+	disable cups.path
+	disable cups-browsed.service
+	disable ModemManager.service
+	disable udisks2.service
 	disable ssh.service
 	disable ssh.socket
 	disable rpi-resize.service
@@ -614,8 +697,8 @@ on_chroot <<- \EOF
 	disable apt-listchanges.timer
 	EOF_PRESET
 
-	systemctl enable sddm.service sshswitch.service rpi-eeprom-update.service systemd-resolved.service fstrim.timer bluetooth.service earlyoom.service packagekit.service cups.service || true
-	systemctl disable ssh.service ssh.socket lm-sensors.service glamor-test.service rp1-test.service e2scrub_reap.service e2scrub_all.timer nfs-blkmap.service rpc-statd-notify.service 2>/dev/null || true
+	systemctl enable sddm.service sshswitch.service rpi-eeprom-update.timer systemd-resolved.service fstrim.timer bluetooth.service earlyoom.service packagekit.service cups.socket || true
+	systemctl disable rpi-eeprom-update.service cups.service cups.path cups-browsed.service ModemManager.service udisks2.service ssh.service ssh.socket lm-sensors.service glamor-test.service rp1-test.service e2scrub_reap.service e2scrub_all.timer nfs-blkmap.service rpc-statd-notify.service 2>/dev/null || true
 	systemctl mask NetworkManager-wait-online.service systemd-networkd-wait-online.service rpi-resize.service systemd-firstboot.service 2>/dev/null || true
 	systemctl set-default graphical.target
 EOF

@@ -2,7 +2,6 @@ kde-plasma-desktop
 kwin-wayland
 kwin-x11
 xwayland
-xwaylandvideobridge
 xdg-desktop-portal-kde
 sddm
 kde-config-sddm

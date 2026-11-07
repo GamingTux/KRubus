@@ -18,12 +18,12 @@ ALIGN="$((8 * 1024 * 1024))"
 # some overhead (since actual space usage is usually rounded up to the
 # filesystem block size) and gives some free space on the resulting
 # image.
-ROOT_MARGIN="$(echo "($ROOT_SIZE * 0.2 + 200 * 1024 * 1024) / 1" | bc)"
-
 BOOT_PART_START=$((ALIGN))
 BOOT_PART_SIZE=$(((BOOT_SIZE + ALIGN - 1) / ALIGN * ALIGN))
 ROOT_PART_START=$((BOOT_PART_START + BOOT_PART_SIZE))
-ROOT_PART_SIZE=$(((ROOT_SIZE + ROOT_MARGIN + ALIGN  - 1) / ALIGN * ALIGN))
+# Btrfs compress=zstd:6 shrinks the rootfs by >50%, so 80% + 512 MiB gives >2.5 GiB free headroom
+# during image build while keeping the raw .img compact enough for 8 GB CM5 eMMC / microSD cards.
+ROOT_PART_SIZE=$((((ROOT_SIZE * 4 / 5) + 512 * 1024 * 1024 + ALIGN - 1) / ALIGN * ALIGN))
 IMG_SIZE=$((BOOT_PART_START + BOOT_PART_SIZE + ROOT_PART_SIZE))
 
 truncate -s "${IMG_SIZE}" "${IMG_FILE}"
@@ -91,7 +91,7 @@ if [ -d "${STAGING}/var/cache/apt/archives" ]; then
 fi
 mkfs.btrfs -f -L rootfs "$ROOT_DEV" > /dev/null
 
-mount -v "$ROOT_DEV" "${ROOTFS_DIR}" -t btrfs -o noatime,nodiratime,ssd
+mount -v "$ROOT_DEV" "${ROOTFS_DIR}" -t btrfs -o compress=zstd:6,noatime,nodiratime,ssd
 rsync -aHAXx --numeric-ids "${STAGING}/" "${ROOTFS_DIR}/"
 rm -rf "${STAGING}"
 
