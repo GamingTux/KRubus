@@ -1,11 +1,12 @@
 Package: krubus-default-settings
-Version: 1.0.9
+Version: 1.0.10
 Architecture: all
 Maintainer: KRubus Project <https://github.com/GamingTux/KRubus>
 Section: admin
 Priority: optional
 Homepage: https://github.com/GamingTux/KRubus
 Depends: systemd, systemd-zram-generator, earlyoom, pipewire, rpi-power-profiles, rpi-suspend, krubus-kernel-hook
+Recommends: linux-headers-rpi-2712
 Description: Default system tuning and performance profiles for KRubus (Pi 5)
  Central system tuning and performance configuration for KRubus on Raspberry Pi 5,
  Pi 500 and Compute Module 5 (BCM2712 / Cortex-A76):
