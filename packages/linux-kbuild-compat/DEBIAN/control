@@ -1,0 +1,11 @@
+Package: linux-kbuild-6.18.60+rpt+1
+Version: 1:6.18.60-1+rpt1+pi5
+Architecture: all
+Maintainer: KRubus Project <https://github.com/GamingTux/KRubus>
+Section: kernel
+Priority: optional
+Homepage: https://github.com/GamingTux/KRubus
+Depends: linux-kbuild-6.18.60+rpt
+Description: Kbuild compatibility package for KRubus Linux 6.18.60+rpt+1
+ Compatibility package bridging linux-kbuild-6.18.60+rpt+1 to upstream
+ linux-kbuild-6.18.60+rpt for KRubus kernel headers and DKMS builds.

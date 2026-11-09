@@ -623,10 +623,16 @@ KCEOF
       sed -i "s|KCFLAGS=-fdebug-prefix-map=\$(CURDIR)/=|KCFLAGS=\"-fdebug-prefix-map=\$(CURDIR)/= ${ARCH_FLAGS} -O3 -Wno-error\"|" debian/rules.real || true
       # 4. Absichtlichen exit 1 bei regenerierter debian/control in debian/rules neutralisieren
       sed -i '/debian\/control-real-fail:/,/^$/ s/exit 1/true/' debian/rules || true
+      # 5. Neutralisiere Debians automatischen ABI-Bump (+1), damit ABI-Name exakt mit upstream linux-kbuild übereinstimmt
+      sed -i 's/if n > 1:/if False:/' debian/bin/gencontrol.py 2>/dev/null || true
     fi
 
-    # Lokales Versions-Suffix (+pi5 / +pi5r1) exakt an den Changelog anhängen
-    if ! DEBEMAIL="builder@localhost" DEBFULLNAME="KRubus Builder" dch --force-distribution -v "${TARGET_VER}" --distribution "${SUITE}" "Compiled for Raspberry Pi 5 Cortex-A76" < /dev/null >> "$LOG_FILE" 2>&1; then
+    # Lokales Versions-Suffix (+pi5 / +pi5r1) an den Changelog anbinden
+    if [[ "$pkg" == "linux" ]]; then
+      # Beim Kernel den obersten Eintrag in-place patchen statt einen neuen Eintrag anzuhängen,
+      # um die ABI-Stabilität und Konsistenz mit dem Debian-Packaging sicherzustellen
+      sed -i "1s/${UPSTREAM_VER}/${TARGET_VER}/" debian/changelog
+    elif ! DEBEMAIL="builder@localhost" DEBFULLNAME="KRubus Builder" dch --force-distribution -v "${TARGET_VER}" --distribution "${SUITE}" "Compiled for Raspberry Pi 5 Cortex-A76" < /dev/null >> "$LOG_FILE" 2>&1; then
       STEP_OK=0
     fi
   fi
