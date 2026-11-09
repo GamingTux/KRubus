@@ -54,8 +54,11 @@ skanpage
 plasma-browser-integration
 webext-plasma-browser-integration
 vlc
-firefox
-firefox-l10n-de
+chromium
+chromium-l10n
+rpi-chromium-mods
+firefox-
+firefox-esr-
 qt6-translations-l10n
 hunspell-de-de
 hunspell-en-us

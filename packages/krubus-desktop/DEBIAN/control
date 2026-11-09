@@ -1,12 +1,12 @@
 Package: krubus-desktop
-Version: 1.0.0
+Version: 1.0.1
 Architecture: all
 Maintainer: KRubus Project <https://github.com/GamingTux/KRubus>
 Section: metapackages
 Priority: optional
 Homepage: https://github.com/GamingTux/KRubus
 Depends: krubus-default-settings, plasma-desktop, plasma-workspace, kwin-wayland, sddm, dolphin, konsole, systemsettings
-Recommends: firefox, vlc, ark, kde-spectacle, filelight, partitionmanager
+Recommends: chromium, vlc, ark, kde-spectacle, filelight, partitionmanager
 Description: KRubus KDE Plasma 6 Desktop Metapackage (Pi 5)
  This metapackage depends on all core desktop components, hardware tuning,
  power profile daemon, and system optimizations that make up the full KRubus

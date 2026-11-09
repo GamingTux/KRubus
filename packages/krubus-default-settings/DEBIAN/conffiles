@@ -13,7 +13,7 @@
 /etc/modules-load.d/i2c-dev.conf
 /etc/xdg/ddcutil/ddcutilrc
 /etc/xdg/powerdevilrc
-/etc/firefox/policies/policies.json
-/etc/firefox-esr/policies/policies.json
+/etc/chromium.d/99-krubus-flags
+/etc/skel/.config/chromium-flags.conf
 /etc/xdg/kdeglobals
 /etc/skel/.config/kdeglobals

@@ -71,11 +71,12 @@ Booting to a fully interactive desktop in **under 5 seconds**, KRubus delivers w
 * **TCP BBR & Network Stack Optimization:** TCP BBR congestion control, fastopen, enlarged socket buffer ceilings, and local DNS caching via systemd-resolved.
 * **Multi-Rate PipeWire Engine:** Supports native hardware sample rates (44.1 kHz, 48 kHz, 88.2 kHz, 96 kHz) without forced resampler overhead.
 
-### 🌐 Pre-Tuned Firefox Browser
-* **RAM-Only Cache (Zero Flash Wear):** Disk caching disabled in favor of an enlarged 256 MB ZRAM memory cache (`browser.cache.memory.capacity = 262144`) for instant back/forward navigation.
-* **Automatic Tab Sleeping:** Memory-efficient background tab suspension (`browser.tabs.unloadOnLowMemory`) preventing out-of-memory stalls.
-* **Privacy & Decrapification:** Telemetry, Mozilla studies, Pocket, and sponsored new-tab tiles completely disabled out of the box.
-* **Native Wayland Zero-Copy:** Full WebRender and DMA-BUF hardware acceleration enabled.
+### 🌐 Pre-Tuned Chromium Browser
+* **Native Wayland Ozone (`--ozone-platform-hint=auto`):** Direct scanout and zero-latency integration with KWin Wayland, bypassing XWayland for butter-smooth 60 fps VSync.
+* **Zero-Copy GPU Rasterization (`--enable-zero-copy`):** Direct memory buffer rasterization on VideoCore VII, drastically cutting RAM bandwidth and CPU cycles.
+* **Canvas OOP Rasterization (`--enable-features=CanvasOopRasterization`):** Hardware-accelerated 2D canvas drawing decoupled from the renderer thread.
+* **Stripped Accessibility Overhead:** Automatically purges the CPU-heavy `--force-renderer-accessibility` tree computation inherited from legacy Raspberry Pi OS configs.
+* **User Flags Config:** Drop-in support for `~/.config/chromium-flags.conf` enabling clean, permanent user-level browser customizations.
 
 ---
 
@@ -125,8 +126,8 @@ KRubus follows a clean modular metapackage design, ensuring rolling updates auto
 
 | Package | Version | Description |
 | :--- | :--- | :--- |
-| **[`krubus-desktop`](./packages/krubus-desktop)** | `1.0.0` | Flagship metapackage pulling in KDE Plasma 6, SDDM, KWin Wayland, Dolphin, Konsole, and all system tunings. |
-| **[`krubus-default-settings`](./packages/krubus-default-settings)** | `1.0.8` | Core system configuration: KRubus Dark theme, vector icons, ZRAM zstd, sysctl, EarlyOOM rules, PipeWire multi-rate, and Firefox policies. |
+| **[`krubus-desktop`](./packages/krubus-desktop)** | `1.0.1` | Flagship metapackage pulling in KDE Plasma 6, SDDM, KWin Wayland, Dolphin, Konsole, Chromium, and all system tunings. |
+| **[`krubus-default-settings`](./packages/krubus-default-settings)** | `1.0.9` | Core system configuration: KRubus Dark theme, vector icons, ZRAM zstd, sysctl, EarlyOOM rules, PipeWire multi-rate, and Chromium performance configuration. |
 | **[`rpi-power-profiles`](./packages/rpi-power-profiles)** | `1.0.2` | Event-driven D-Bus hardware power profiles daemon connecting KDE PowerDevil with BCM2712 CPU governors and PCIe ASPM. |
 | **[`rpi-suspend`](./packages/rpi-suspend)** | `1.5.2` | Standby and sleep manager enabling instant `<1 ms` interrupt wakeup on Raspberry Pi 4/5 hardware. |
 | **[`krubus-kernel-hook`](./packages/krubus-kernel-hook)** | `1.0.0` | Kernel packaging hook maintaining the 1000 Hz dual-kernel configuration in `/boot/firmware/kernel_2712.img`. |

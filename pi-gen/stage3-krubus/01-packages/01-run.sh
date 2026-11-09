@@ -244,7 +244,7 @@ for kg in ["etc/xdg/kdeglobals", "etc/skel/.config/kdeglobals"]:
     except Exception:
         pass
 
-# 4. Pin Firefox, Dolphin & Konsole and set KRubus branding in default Plasma panel
+# 4. Pin Chromium, Dolphin & Konsole and set KRubus branding in default Plasma panel
 layout_js = rpath("usr/share/plasma/layout-templates/org.kde.plasma.desktop.defaultPanel/contents/layout.js")
 if os.path.isfile(layout_js):
     try:
@@ -256,13 +256,13 @@ if os.path.isfile(layout_js):
 kickoff.currentConfigGroup = ["General"];
 kickoff.writeConfig("icon", "krubus");"""
             ljs = ljs.replace(target_kickoff, replacement_kickoff, 1)
-        ff_desktop = "firefox.desktop" if os.path.isfile(rpath("usr/share/applications/firefox.desktop")) else "firefox-esr.desktop"
+        browser_desktop = "chromium.desktop"
         target_tasks = 'panel.addWidget("org.kde.plasma.icontasks")'
         if target_tasks in ljs and "tasks.writeConfig" not in ljs:
             replacement_tasks = f"""var tasks = panel.addWidget("org.kde.plasma.icontasks");
 tasks.currentConfigGroup = ["General"];
 tasks.writeConfig("launchers", [
-    "applications:{ff_desktop}",
+    "applications:{browser_desktop}",
     "applications:org.kde.dolphin.desktop",
     "applications:org.kde.konsole.desktop"
 ]);"""
@@ -441,124 +441,41 @@ cat << 'EOF' > "${ROOTFS_DIR}/etc/systemd/system/smartmontools.service.d/nvme-on
 ConditionPathExistsGlob=/dev/nvme*
 EOF
 
-# 5. Firefox Wayland Zero-Copy DMABUF, V3D WebRender, Flash-Safe RAM Cache & Widevine DRM
+# 5. Chromium Hardware-Accelerated Wayland, Zero-Copy GPU Buffer & Performance Flags
 install -d -m 755 \
-	"${ROOTFS_DIR}/etc/firefox/policies" \
-	"${ROOTFS_DIR}/etc/firefox-esr/policies" \
-	"${ROOTFS_DIR}/usr/lib/firefox/gmp-widevinecdm" \
-	"${ROOTFS_DIR}/usr/lib/firefox-esr/gmp-widevinecdm" \
-	"${ROOTFS_DIR}/etc/environment.d" \
-	"${ROOTFS_DIR}/etc/profile.d"
+	"${ROOTFS_DIR}/etc/chromium.d" \
+	"${ROOTFS_DIR}/etc/skel/.config"
 
-ln -sf /opt/WidevineCdm/gmp-widevinecdm/latest "${ROOTFS_DIR}/usr/lib/firefox/gmp-widevinecdm/system-installed"
-ln -sf /opt/WidevineCdm/gmp-widevinecdm/latest "${ROOTFS_DIR}/usr/lib/firefox-esr/gmp-widevinecdm/system-installed"
+cat << 'EOF' > "${ROOTFS_DIR}/etc/chromium.d/99-krubus-flags"
+# 1. Remove forced accessibility penalty from rpi-chromium-mods
+CHROMIUM_FLAGS=$(echo "$CHROMIUM_FLAGS" | sed "s/--force-renderer-accessibility//g")
 
-cat << 'EOF' > "${ROOTFS_DIR}/etc/environment.d/50-gmpwidevine.conf"
-MOZ_GMP_PATH=$MOZ_GMP_PATH${MOZ_GMP_PATH:+:}/opt/WidevineCdm/gmp-widevinecdm/latest
-EOF
-
-cat << 'EOF' > "${ROOTFS_DIR}/etc/profile.d/gmpwidevine.sh"
-if [[ ":$MOZ_GMP_PATH:" != *":/opt/WidevineCdm/gmp-widevinecdm/latest:"* ]]; then
-    export MOZ_GMP_PATH="${MOZ_GMP_PATH}${MOZ_GMP_PATH:+:}/opt/WidevineCdm/gmp-widevinecdm/latest"
+# 2. Source user flags from ~/.config/chromium-flags.conf if present
+if [ -n "$HOME" ] && [ -f "$HOME/.config/chromium-flags.conf" ]; then
+    USER_FLAGS=$(grep -v "^[[:space:]]*#" "$HOME/.config/chromium-flags.conf" | grep -v "^[[:space:]]*$" | tr "\n" " ")
+    CHROMIUM_FLAGS="$CHROMIUM_FLAGS $USER_FLAGS"
 fi
 EOF
+chmod 644 "${ROOTFS_DIR}/etc/chromium.d/99-krubus-flags"
 
-cat << 'EOF' > "${ROOTFS_DIR}/etc/firefox/policies/policies.json"
-{
-  "policies": {
-    "DisablePocket": true,
-    "DisableTelemetry": true,
-    "DisableFirefoxStudies": true,
-    "EncryptedMediaExtensions": {
-      "Enabled": true,
-      "Locked": false
-    },
-    "Preferences": {
-      "gfx.webrender.all": {
-        "Value": true,
-        "Status": "default"
-      },
-      "gfx.canvas.accelerated": {
-        "Value": true,
-        "Status": "default"
-      },
-      "layers.gpu-process.enabled": {
-        "Value": true,
-        "Status": "default"
-      },
-      "widget.dmabuf.force-enabled": {
-        "Value": true,
-        "Status": "default"
-      },
-      "widget.wayland.opaque-region.enabled": {
-        "Value": true,
-        "Status": "default"
-      },
-      "media.ffmpeg.vaapi.enabled": {
-        "Value": false,
-        "Status": "default"
-      },
-      "media.rdd-process.enabled": {
-        "Value": true,
-        "Status": "default"
-      },
-      "media.eme.enabled": {
-        "Value": true,
-        "Status": "default"
-      },
-      "media.gmp-widevinecdm.enabled": {
-        "Value": true,
-        "Status": "default"
-      },
-      "media.gmp-widevinecdm.visible": {
-        "Value": true,
-        "Status": "default"
-      },
-      "media.gmp-widevinecdm.version": {
-        "Value": "latest",
-        "Status": "default"
-      },
-      "media.gmp-widevinecdm.autoupdate": {
-        "Value": false,
-        "Status": "default"
-      },
-      "browser.cache.disk.enable": {
-        "Value": false,
-        "Status": "default"
-      },
-      "browser.cache.memory.enable": {
-        "Value": true,
-        "Status": "default"
-      },
-      "browser.cache.memory.capacity": {
-        "Value": 262144,
-        "Status": "default"
-      },
-      "browser.cache.memory.max_entry_size": {
-        "Value": 51200,
-        "Status": "default"
-      },
-      "browser.tabs.unloadOnLowMemory": {
-        "Value": true,
-        "Status": "default"
-      },
-      "browser.newtabpage.activity-stream.showSponsored": {
-        "Value": false,
-        "Status": "default"
-      },
-      "browser.newtabpage.activity-stream.showSponsoredTopSites": {
-        "Value": false,
-        "Status": "default"
-      },
-      "browser.newtabpage.activity-stream.feeds.section.topstories": {
-        "Value": false,
-        "Status": "default"
-      }
-    }
-  }
-}
+cat << 'EOF' > "${ROOTFS_DIR}/etc/skel/.config/chromium-flags.conf"
+# KRubus Chromium Performance Configuration (Raspberry Pi 5 + KDE Plasma 6 Wayland)
+
+# 1. Nativer Wayland-Modus: Bypasst XWayland, minimale Latenz, Direct-Scanout, butterweicher 60Hz-VSync
+--ozone-platform-hint=auto
+
+# 2. Zero-Copy: Tiles werden direkt im shared GPU-Buffer gerendert (spart RAM-Bandbreite & CPU-Zyklen)
+--enable-zero-copy
+
+# 3. Volle GPU-Beschleunigung erzwingen (ignoriert hardcodierte Treiber-Blacklists)
+--ignore-gpu-blocklist
+
+# 4. Out-of-process 2D Canvas Rasterization (lagert Canvas-Rendering auf GPU-Prozess aus)
+--enable-features=CanvasOopRasterization
+
+# 5. Smooth Scrolling synchronisiert mit Wayland-Bildwiederholrate
+--enable-smooth-scrolling
 EOF
-cp "${ROOTFS_DIR}/etc/firefox/policies/policies.json" "${ROOTFS_DIR}/etc/firefox-esr/policies/policies.json"
 
 # 6. NetworkManager Wi-Fi Stability, Avahi Dual-Stack Fix, Local DNS Cache & Polkit Rules
 install -d -m 755 "${ROOTFS_DIR}/etc/NetworkManager/conf.d" "${ROOTFS_DIR}/etc/systemd/resolved.conf.d" "${ROOTFS_DIR}/etc/polkit-1/rules.d"
@@ -653,8 +570,8 @@ on_chroot <<- \EOF
 		fi
 	done
 	/usr/local/sbin/krubus-kde-polish || true
-	update-alternatives --set x-www-browser /usr/bin/firefox || true
-	update-alternatives --set gnome-www-browser /usr/bin/firefox || true
+	update-alternatives --set x-www-browser /usr/bin/chromium || true
+	update-alternatives --set gnome-www-browser /usr/bin/chromium || true
 	plymouth-set-default-theme krubus || true
 	for net_helper in /usr/lib/*/libexec/ksysguard/ksgrd_network_helper; do
 		[ -f "$net_helper" ] && setcap cap_net_raw=ep "$net_helper" || true

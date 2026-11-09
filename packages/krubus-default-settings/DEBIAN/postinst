@@ -12,8 +12,8 @@ if ! ischroot 2>/dev/null; then
         /etc/pipewire/pipewire.conf.d/99-krubus.conf \
         /etc/xdg/ddcutil/ddcutilrc \
         /etc/xdg/powerdevilrc \
-        /etc/firefox/policies/policies.json \
-        /etc/firefox-esr/policies/policies.json \
+        /etc/chromium.d/99-krubus-flags \
+        /etc/skel/.config/chromium-flags.conf \
         /etc/xdg/kdeglobals \
         /etc/skel/.config/kdeglobals \
         /etc/systemd/user/plasma-powerdevil.service.d/override.conf; do
@@ -53,7 +53,20 @@ if mod:
         cp.write(f)
 " 2>/dev/null || true
         fi
+
+        # Ensure user has chromium performance flags if missing
+        if [ ! -f "$homedir/.config/chromium-flags.conf" ] && [ -f /etc/skel/.config/chromium-flags.conf ]; then
+            install -d -m 755 -o "$(stat -c '%U' "$homedir")" -g "$(stat -c '%G' "$homedir")" "$homedir/.config"
+            cp /etc/skel/.config/chromium-flags.conf "$homedir/.config/chromium-flags.conf"
+            chown "$(stat -c '%U:%G' "$homedir")" "$homedir/.config/chromium-flags.conf" 2>/dev/null || true
+        fi
     done
+
+    # Default browser alternatives to Chromium
+    if [ -x /usr/bin/chromium ]; then
+        update-alternatives --set x-www-browser /usr/bin/chromium 2>/dev/null || true
+        update-alternatives --set gnome-www-browser /usr/bin/chromium 2>/dev/null || true
+    fi
 
     # 1. Apply kernel sysctl tweaks immediately
     sysctl --system >/dev/null 2>&1 || true
