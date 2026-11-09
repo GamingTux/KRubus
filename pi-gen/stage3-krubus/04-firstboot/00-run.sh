@@ -315,11 +315,10 @@ if [ -f "$BOOTCONF" ]; then
         echo "kernel=kernel8.img" >> "$BOOTCONF"
     fi
 
+    sed -i 's/^#*dtparam=i2c_arm=.*/dtparam=i2c_arm=on/' "$BOOTCONF"
     if [[ "$TWEAK_CHOICES" == *"i2c_spi"* ]]; then
-        sed -i 's/^#*dtparam=i2c_arm=.*/dtparam=i2c_arm=on/' "$BOOTCONF"
         sed -i 's/^#*dtparam=spi=.*/dtparam=spi=on/' "$BOOTCONF"
     else
-        sed -i 's/^dtparam=i2c_arm=.*/#dtparam=i2c_arm=on/' "$BOOTCONF"
         sed -i 's/^dtparam=spi=.*/#dtparam=spi=on/' "$BOOTCONF"
     fi
 fi
