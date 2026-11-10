@@ -1,0 +1,23 @@
+Architectures: arm64
+Codename: trixie
+Components: main
+Date: Tue, 10 Nov 2026 11:00:21 +0000
+Label: KRubus
+Origin: KRubus
+Suite: trixie
+MD5Sum:
+ 2ce52077cfb86a2d3cf1c05e1eb89e75              136 Release
+ 58bb803b17d169ad19628aa77c0d53bd          2169562 main/binary-arm64/Packages
+ 335374645462921ec5f89e6b52aecc6a           493565 main/binary-arm64/Packages.gz
+SHA1:
+ ef59d156c1d353e2287716355e0860c1d07889e4              136 Release
+ 84d3d5553b7e535883f4a163aae548b3e2ca2ee7          2169562 main/binary-arm64/Packages
+ 33aad8b67f85d45cfda9c682616d31b06bef10ff           493565 main/binary-arm64/Packages.gz
+SHA256:
+ 68511cfa23ea2c31db5021aa083c594cdddddb54ead4acf1dc3e75f3e423a19e              136 Release
+ 8c37d1b1f8bbd7b1e12f3b22b8dc6dd61eb1519c7c4a8aecea16d41c2ef75bed          2169562 main/binary-arm64/Packages
+ 6f346c70c832a85207d95ca9867c54d55b0a2c9d863ed32850238b25ddd64d7c           493565 main/binary-arm64/Packages.gz
+SHA512:
+ cbd793d6c07fe777edea63fe8cbb947791b4489bd433cf147d1b96f8d66e509ecc78afbb99d310546c479109c0015ef3a509c28a53a4abea59fd43a3a6514f24              136 Release
+ a7fad858e60edb6f9d00c3c2dd31db6d22d9627eae063a44bfb312f850f78db3057eac583ba0b7bdb5116ebc53665a4e817bbdcb3c75357944482e3d2bb1d923          2169562 main/binary-arm64/Packages
+ 6ce8e87e84533af8bad7f5dbd84c45aa145ba512701e043e4ee54fca8ad7318e2e7a2a01e98789e76256f4668ad76927255b49967d43da7fba06123c509c0881           493565 main/binary-arm64/Packages.gz
