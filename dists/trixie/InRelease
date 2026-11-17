@@ -1,0 +1,42 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Architectures: arm64
+Codename: trixie
+Components: main
+Date: Tue, 17 Nov 2026 12:27:54 +0000
+Label: KRubus
+Origin: KRubus
+Suite: trixie
+MD5Sum:
+ eb044da27a900889f4d9c6da42e43964              136 Release
+ e964852ce25235e3e4bbfb8bb6fd26db          2170084 main/binary-arm64/Packages
+ 9130732bfae6e4305caae6cc8821f4fd           493691 main/binary-arm64/Packages.gz
+SHA1:
+ 908bc08b19d4b8cb94d11922fa3bc7d5443ed32b              136 Release
+ 5fa20fe405b747bb351e60e4c770c70b85825be9          2170084 main/binary-arm64/Packages
+ 3db17d1af93f5027d9473eaff0b176533d6fe880           493691 main/binary-arm64/Packages.gz
+SHA256:
+ d3015d6e459400cd8bb6da634b1c71e8b38a22c0bebe0dec213c2e00c1f458fb              136 Release
+ e5af6106f41e054d62bbb900bd00cff3dc4c1deaa1b062879c179b1a0524bddc          2170084 main/binary-arm64/Packages
+ 157963814d99e3e09ce213b4472e62f73d6825f1a5971069b2191833d654a8ce           493691 main/binary-arm64/Packages.gz
+SHA512:
+ 2aed120f95ca1b584160252f02b3c4124002a07f73905ee8f1c97dd968ab13a1a469b7ce012b6798e524dda2432c990871e7b8ac84bc994d1ca8cbca0db47655              136 Release
+ ef072f7976657976a57c9a3d5490d9e03059e77fa81454063a0575a2e23b7323be459eca397207521aa402c2a4be53a5531f1b108b3565a39f42ce193b99f685          2170084 main/binary-arm64/Packages
+ 842312fe342e55d56fd49d5e4a2adf311d1257d082a73871ae29c5b996e4ea1283350e475f10af0fc616d6c104e8dbd3c4425484b2814a64504ef308ad2507a8           493691 main/binary-arm64/Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iQIzBAEBCgAdFiEEvWgs+vnHiukN7Z63z+Cvv/OuvckFAmr8SEoACgkQz+Cvv/Ou
+vcnKOw//bSlMA4qzHbjv4375DriaKByMXF6sKKPY7BNZLti9zNq8wDNhSfb6wjQi
+HlcH/Pot28RV86ojVMQtVMci5SP7NblIBv6NcMDXom/s4RS/lvJSvp3G9+rAtHtU
+Bp4Z2DETNG5CWoiWRsIo0xoPChf+ToAXMK6ROFFuYMUc6wTKyeTN+QkqufEKs2/e
+Tyc0ktUh3xIMJn3iy+WnkfFQdfrr/Hoi14ePFKWf4+T238hRY6tigxAT2W6PpBSI
+4ThLhpAsBpixY4Hv6+tO4EzP4uTIuHLecGyzA3kHMiPipga2sQ2BL7n0/S52/EnJ
+301giQmcbb2eyl6TuI94ZEG23P85S6HsRTCRI+xy6HurijHYc3ug34/1xljm+kHJ
+f3/FZxvSBoD1Pl/LArmrKbfMLEtotPzhw72FIGKfuaQg1JovcqLenBwYxQuaGUEu
+b0rLNuSF2I4ey9u16IGvXK5s8jKnuW+akraRFvn+8PjIhjuVPCClHO6BLq3efH52
+4mJiWDeASyv8Q81l4yUPTmIO3qRQdV9i3G2DgKh/Q/kSHvghiwvrKIdACg7ap6oS
+XitLKSwHzWqOsRPS3V+zgOdgFEIImrUS2vWkrRWw+vlIo58BcWKf8tr3gII/HwzH
+IHV6p1idrqlA1mEoQtHXMpEQaEJnKNJGD9Je6OQ1CDRZsD25kD0=
+=6/Lx
+-----END PGP SIGNATURE-----
